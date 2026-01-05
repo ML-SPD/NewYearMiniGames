@@ -9,7 +9,7 @@
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, deleteDoc, doc, getDocs, writeBatch, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCxTaWg2WJ1_01w4sOe1FKXXx6idNfOWVc",
@@ -28,6 +28,11 @@
         window.collection = collection;
         window.addDoc = addDoc;
         window.serverTimestamp = serverTimestamp;
+        window.doc = doc;
+        window.deleteDoc = deleteDoc;
+        window.getDocs = getDocs;
+        window.writeBatch = writeBatch;
+        window.setDoc = setDoc;
 
         // --- 管理者邏輯 ---
         const ADMIN_PASSWORD = "8888"; 
@@ -40,6 +45,12 @@
                 document.getElementById('line-warning').classList.remove('hidden');
             }
 
+            // --- 自動帶入紀錄 ---
+            const savedId = localStorage.getItem('meiloon_userid');
+            const savedName = localStorage.getItem('meiloon_pname');
+            if(savedId) document.getElementById('userId').value = savedId;
+            if(savedName) document.getElementById('pName').value = savedName;
+
             // Init Avatars
             initAvatars();
 
@@ -48,6 +59,16 @@
                 localStorage.setItem('gameDeadline', "2026-01-05T19:30");
             }
             updateDeadlineDisplay();
+
+            // Listen for Global Config (Max Lives)
+            onSnapshot(doc(db, "config", "gameSettings"), (docSnap) => {
+                if(docSnap.exists()) {
+                    window.maxLives = docSnap.data().maxLives || 3;
+                    console.log("Updated Max Lives:", window.maxLives);
+                } else {
+                    window.maxLives = 3;
+                }
+            });
 
             if (isAdminMode) {
                 const pass = prompt("請輸入管理員密碼：");
@@ -93,10 +114,33 @@
                 });
             } catch (e) { console.error("Firebase Error: ", e); }
         };
+        
+        // --- Admin Actions ---
+        window.clearAllScores = async () => {
+            if(!confirm("確定要清空所有排行榜數據嗎？此動作無法復原！")) return;
+            try {
+                const q = query(collection(db, "scores"));
+                const snapshot = await getDocs(q);
+                const batch = writeBatch(db);
+                snapshot.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                alert("排行榜已成功清空！");
+            } catch(e) { alert("清空失敗: " + e); }
+        };
+
+        window.updateLivesConfig = async () => {
+            const val = parseInt(document.getElementById('lives-input').value);
+            if(val < 3 || val > 7) return alert("請輸入 3 到 7 之間的數字");
+            try {
+                await setDoc(doc(db, "config", "gameSettings"), { maxLives: val }, { merge: true });
+                alert("初始生命值已更新為: " + val);
+            } catch(e) { alert("設定失敗: " + e); }
+        };
 
         // --- Leaderboard Logic (Deduplicated) ---
         function startLeaderboardStream() {
-            // Fetch more records to allow for filtering
             const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(60));
             onSnapshot(q, (snapshot) => {
                 const listEl = document.getElementById('admin-list');
@@ -107,23 +151,19 @@
                     rawData.push(doc.data());
                 });
 
-                // Deduplicate: Keep highest score per userId
                 const userBest = {};
                 rawData.forEach(d => {
-                    // Normalize userId to string to be safe
                     const uid = String(d.userId).trim();
                     if (!userBest[uid] || d.score > userBest[uid].score) {
                         userBest[uid] = d;
                     }
                 });
 
-                // Convert to array, sort by score desc, take top 10
                 const sortedList = Object.values(userBest)
                     .sort((a,b) => b.score - a.score)
                     .slice(0, 10);
 
                 sortedList.forEach((data, index) => {
-                    // Format Date
                     let timeStr = "";
                     if (data.createdAt && data.createdAt.toDate) {
                         const date = data.createdAt.toDate();
@@ -147,13 +187,13 @@
         }
     </script>
     <style>
-        body { margin: 0; overflow: hidden; background: #1a1a1a; touch-action: none; font-family: 'Microsoft JhengHei', sans-serif; }
-        canvas { display: block; }
+        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Microsoft JhengHei', sans-serif; }
+        canvas { display: block; touch-action: none; } /* Only disable touch on game canvas */
         #ui { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
         
-        /* Scrollable Overlay Setup */
+        /* Fixed scrolling for iOS */
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 100; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-        .overlay-content { min-height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px 20px; }
+        .overlay-content { min-height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px 10px; }
 
         .avatar-option { width: 65px; height: 65px; border: 3px solid transparent; border-radius: 50%; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; background: #333; overflow: hidden; }
         .avatar-option img { width: 100%; height: 100%; object-fit: cover; }
@@ -174,10 +214,13 @@
 
     <div id="login-menu" class="overlay text-white">
         <div class="overlay-content">
-            <h1 class="text-3xl font-black text-yellow-500 mb-6 italic text-center leading-tight">2026 Meiloon - 切水果大賽</h1>
-            <div class="w-full max-w-xs space-y-4 text-black">
-                <input type="text" id="userId" placeholder="員工編號或自行輸入帳號" class="w-full p-3 rounded-lg text-center font-bold">
-                <input type="text" id="pName" placeholder="你的暱稱" class="w-full p-3 rounded-lg text-center font-bold">
+            <h1 class="text-xl font-black text-yellow-500 mb-6 italic text-center leading-tight">2026 Meiloon - 切水果大賽</h1>
+            <div class="w-full max-w-sm space-y-4 text-black">
+                <!-- 左右並排的輸入框 -->
+                <div class="flex space-x-2">
+                    <input type="text" id="userId" placeholder="工號" class="flex-1 p-3 rounded-lg text-center font-bold text-sm min-w-0">
+                    <input type="text" id="pName" placeholder="暱稱" class="flex-1 p-3 rounded-lg text-center font-bold text-sm min-w-0">
+                </div>
                 
                 <p class="text-gray-400 text-sm text-center pt-2">選擇頭像</p>
                 <div class="grid grid-cols-4 gap-3 py-2 justify-items-center" id="avatar-container">
@@ -197,8 +240,23 @@
         <div class="overlay-content">
             <div class="absolute top-10 right-10 bg-gray-900 p-4 rounded-xl border border-gray-700 text-sm">
                 <p class="mb-2 text-yellow-500 font-bold">後台管理</p>
-                <input type="datetime-local" id="deadline-input" class="text-black p-1 rounded mb-2 w-full">
-                <button onclick="changeDeadline()" class="bg-blue-600 px-4 py-1 rounded w-full">更新截止時間</button>
+                <div class="mb-2">
+                    <label class="block text-gray-400 text-xs">截止時間</label>
+                    <input type="datetime-local" id="deadline-input" class="text-black p-1 rounded w-full">
+                    <button onclick="changeDeadline()" class="bg-blue-600 px-4 py-1 rounded w-full mt-1">更新</button>
+                </div>
+                
+                <div class="border-t border-gray-700 pt-2 mt-2">
+                    <label class="block text-gray-400 text-xs">初始生命 (3-7)</label>
+                    <div class="flex space-x-2">
+                        <input type="number" id="lives-input" min="3" max="7" placeholder="3" class="text-black p-1 rounded w-16 text-center">
+                        <button onclick="updateLivesConfig()" class="bg-green-600 px-2 py-1 rounded flex-1">設定</button>
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-700 pt-2 mt-2">
+                    <button onclick="clearAllScores()" class="bg-red-600 px-4 py-2 rounded w-full text-xs font-bold">⚠ 清空所有分數</button>
+                </div>
             </div>
             
             <h1 class="text-5xl font-black text-yellow-500 mb-8 italic drop-shadow-lg">LIVE 排行榜</h1>
@@ -261,44 +319,39 @@
             const gain = audioCtx.createGain();
             osc.connect(gain);
             gain.connect(audioCtx.destination);
-            
-            // Randomize pitch slightly for variety
             const startFreq = 600 + Math.random() * 400;
-            
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(startFreq, audioCtx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
-            
             gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-            
             osc.start();
             osc.stop(audioCtx.currentTime + 0.15);
         }
+        
+        function playBombSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
 
         // --- Avatars Configuration ---
-        // 4 Males, 4 Females, 8 Animals (All Local)
         const avatars = [
             // Row 1: Males
-            "assets/male1.png",
-            "assets/male2.png",
-            "assets/male3.png",
-            "assets/male4.png",
+            "assets/male1.png", "assets/male2.png", "assets/male3.png", "assets/male4.png",
             // Row 2: Females
-            "assets/female1.png",
-            "assets/female2.png",
-            "assets/female3.png",
-            "assets/female4.png",
-            // Row 3: Animals (1-4)
-            "assets/animal1.png",
-            "assets/animal2.png",
-            "assets/animal3.png",
-            "assets/animal4.png"
-            // Row 4: Animals (5-8)
-//             "assets/animal5.png",
-//             "assets/animal6.png",
-//             "assets/animal7.png",
-//             "assets/animal8.png"
+            "assets/female1.png", "assets/female2.png", "assets/female3.png", "assets/female4.png",
+            // Row 3: Animals
+            "assets/animal1.png", "assets/animal2.png", "assets/animal3.png", "assets/animal4.png",
         ];
         
         let selectedAvatar = avatars[0]; 
@@ -318,14 +371,12 @@
             selectedAvatar = url;
         };
         
-        // --- Canvas Setup ---
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
-
 
         const fruitTypes = [
             { emoji: '🍎', color: '#ff4d4d' },
@@ -345,11 +396,18 @@
                 this.gravity = 0.25;
                 this.radius = 35;
                 this.sliced = false;
+                this.isBomb = false;
             }
             update() {
                 this.vy += this.gravity;
                 this.x += this.vx;
                 this.y += this.vy;
+                
+                // Wall Logic: Hit wall -> Stop Horizontal, Start Falling
+                if (this.x < 30 || this.x > canvas.width - 30) {
+                    this.vx = 0; // Stop horizontal
+                    if (this.vy < 0) this.vy = 0; // If moving up, stop moving up (start falling)
+                }
             }
             draw() {
                 ctx.font = "50px Arial";
@@ -358,16 +416,34 @@
                 ctx.fillText(this.type.emoji, this.x, this.y);
             }
         }
+        
+        class Bomb extends Fruit {
+            constructor() {
+                super();
+                this.type = { emoji: '💣', color: '#000' };
+                this.radius = 40;
+                this.isBomb = true;
+                // Bombs can be faster or unpredictable, but inherit for now
+            }
+            // Same update/draw
+        }
 
         window.bootGame = () => {
             userId = document.getElementById('userId').value;
             playerName = document.getElementById('pName').value;
             if(!userId || !playerName) {
-                alert("請填寫帳號與暱稱");
+                alert("請填寫工號與暱稱");
                 return;
             }
+            // --- 儲存紀錄 ---
+            localStorage.setItem('meiloon_userid', userId);
+            localStorage.setItem('meiloon_pname', playerName);
+
             document.getElementById('login-menu').style.display = 'none';
-            score = 0; lives = 3; fruits = []; gameActive = true;
+            // Set lives from global config or default to 3
+            lives = (window.maxLives !== undefined) ? window.maxLives : 3;
+            
+            score = 0; fruits = []; gameActive = true;
             updateUI();
             loop();
         }
@@ -386,8 +462,16 @@
             fruits.forEach((f) => {
                 if (!f.sliced && Math.hypot(f.x - x, f.y - y) < f.radius) {
                     f.sliced = true;
-                    score += 10;
-                    playSliceSound();
+                    if (f.isBomb) {
+                        lives--;
+                        playBombSound();
+                        // Optional: Flash Screen Red
+                        document.body.style.backgroundColor = 'red';
+                        setTimeout(() => document.body.style.backgroundColor = '#1a1a1a', 100);
+                    } else {
+                        score += 10;
+                        playSliceSound();
+                    }
                     updateUI();
                 }
             });
@@ -400,7 +484,6 @@
             if (!gameActive) return;
             ctx.fillStyle = 'rgba(26, 26, 26, 0.7)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
             ctx.strokeStyle = 'white';
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -411,35 +494,39 @@
             }
             ctx.stroke();
             trail = trail.filter(t => t.age < 10);
-
-            if (Math.random() < 0.03) fruits.push(new Fruit());
+            
+            // Spawn Logic: 200+ score -> chance for Bomb
+            if (Math.random() < 0.03) {
+                if (score >= 200 && Math.random() < 0.2) { // 20% chance if spawn triggers
+                    fruits.push(new Bomb());
+                } else {
+                    fruits.push(new Fruit());
+                }
+            }
 
             for (let i = fruits.length - 1; i >= 0; i--) {
                 fruits[i].update();
                 fruits[i].draw();
                 if (fruits[i].y > canvas.height + 100) {
-                    if (!fruits[i].sliced) { lives--; updateUI(); }
+                    // Only deduct life if it's a Fruit (not sliced)
+                    if (!fruits[i].sliced && !fruits[i].isBomb) { lives--; updateUI(); }
                     fruits.splice(i, 1);
                 } else if (fruits[i].sliced) {
                     fruits.splice(i, 1);
                 }
             }
-
             if (lives <= 0) endGame();
             else requestAnimationFrame(loop);
         }
 
         async function endGame() {
             gameActive = false;
-            
-            // Direct assignment since we are using local images now
             document.getElementById('res-avatar').src = selectedAvatar;
             document.getElementById('res-name').innerText = playerName;
             document.getElementById('res-uid').innerText = "ID: " + userId;
             document.getElementById('res-score').innerText = score;
             document.getElementById('res-time').innerText = "DATE: " + new Date().toLocaleString();
             document.getElementById('result-screen').classList.remove('hidden');
-            
             if (window.uploadScore) {
                 await window.uploadScore(userId, playerName, selectedAvatar, score);
             }
@@ -447,27 +534,18 @@
 
         window.generateAndShowImage = () => {
             const target = document.querySelector("#screenshot-area");
-            
-            // Temporary scale up for better resolution
-            const originalTransform = target.style.transform;
             target.style.transform = "scale(1)"; 
-            
             html2canvas(target, { 
                 useCORS: true, 
                 backgroundColor: null,
-                scale: 2 // High res
+                scale: 2 
             }).then(c => {
                 const imgData = c.toDataURL("image/png");
-                
-                // Switch UI to show the image
                 document.getElementById('screenshot-area').classList.add('hidden');
                 document.getElementById('result-buttons').classList.add('hidden');
-                
                 const imgEl = document.getElementById('generated-image');
                 imgEl.src = imgData;
                 document.getElementById('final-image-container').classList.remove('hidden');
-                
-                // Restore logic if needed, but we are in a 'done' state
             });
         };
     </script>
