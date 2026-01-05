@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>2026 尾牙切水果大賽</title>
+    <title>2026 Meiloon 切水果大賽</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
@@ -22,14 +22,28 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        
+        // Expose to global scope for non-module scripts
+        window.db = db;
+        window.collection = collection;
+        window.addDoc = addDoc;
+        window.serverTimestamp = serverTimestamp;
 
         // --- 管理者邏輯 ---
-        const ADMIN_PASSWORD = "8888"; // 你可以修改你的後台密碼
+        const ADMIN_PASSWORD = "8888"; 
         const urlParams = new URLSearchParams(window.location.search);
         const isAdminMode = urlParams.get('admin') === 'true';
 
         window.onload = () => {
-            // 初始化截止時間 (預設 19:30)
+            // Check for Line Browser
+            if (navigator.userAgent.includes("Line")) {
+                document.getElementById('line-warning').classList.remove('hidden');
+            }
+
+            // Init Avatars
+            initAvatars();
+
+            // Init Deadline
             if(!localStorage.getItem('gameDeadline')) {
                 localStorage.setItem('gameDeadline', "2026-01-05T19:30");
             }
@@ -54,7 +68,6 @@
             if(display) display.innerText = d.replace("T", " ");
         }
 
-        // 修改時間的函數
         window.changeDeadline = () => {
             const newTime = document.getElementById('deadline-input').value;
             if(newTime) {
@@ -64,7 +77,7 @@
             }
         };
 
-        window.uploadScore = async (uid, name, avatar, score) => {
+        window.uploadScore = async (uid, name, avatarUrl, score) => {
             const deadlineStr = localStorage.getItem('gameDeadline');
             if (new Date() > new Date(deadlineStr)) {
                 alert("活動已截止，分數不納入排行榜喔！");
@@ -72,24 +85,60 @@
             }
             try {
                 await addDoc(collection(db, "scores"), {
-                    userId: uid, playerName: name, avatar: avatar, score: score, createdAt: serverTimestamp()
+                    userId: uid, 
+                    playerName: name, 
+                    avatar: avatarUrl, 
+                    score: score, 
+                    createdAt: serverTimestamp()
                 });
             } catch (e) { console.error("Firebase Error: ", e); }
         };
 
+        // --- Leaderboard Logic (Deduplicated) ---
         function startLeaderboardStream() {
-            const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(10));
+            // Fetch more records to allow for filtering
+            const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(60));
             onSnapshot(q, (snapshot) => {
                 const listEl = document.getElementById('admin-list');
                 listEl.innerHTML = "";
-                snapshot.forEach((doc, index) => {
-                    const data = doc.data();
+                
+                let rawData = [];
+                snapshot.forEach(doc => {
+                    rawData.push(doc.data());
+                });
+
+                // Deduplicate: Keep highest score per userId
+                const userBest = {};
+                rawData.forEach(d => {
+                    // Normalize userId to string to be safe
+                    const uid = String(d.userId).trim();
+                    if (!userBest[uid] || d.score > userBest[uid].score) {
+                        userBest[uid] = d;
+                    }
+                });
+
+                // Convert to array, sort by score desc, take top 10
+                const sortedList = Object.values(userBest)
+                    .sort((a,b) => b.score - a.score)
+                    .slice(0, 10);
+
+                sortedList.forEach((data, index) => {
+                    // Format Date
+                    let timeStr = "";
+                    if (data.createdAt && data.createdAt.toDate) {
+                        const date = data.createdAt.toDate();
+                        timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2,'0')}`;
+                    }
+
                     listEl.innerHTML += `
                         <div class="flex items-center justify-between bg-gray-800 p-4 rounded-xl border-l-4 ${index < 3 ? 'border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'border-blue-500'}">
                             <div class="flex items-center space-x-4">
-                                <span class="text-2xl font-black w-8">${index + 1}</span>
-                                <span class="text-4xl">${data.avatar}</span>
-                                <div><p class="font-bold text-xl">${data.playerName}</p><p class="text-xs text-gray-500">ID: ${data.userId}</p></div>
+                                <span class="text-2xl font-black w-8 text-white">${index + 1}</span>
+                                <img src="${data.avatar}" crossorigin="anonymous" class="w-12 h-12 rounded-full bg-gray-700">
+                                <div>
+                                    <p class="font-bold text-xl text-white">${data.playerName}</p>
+                                    <p class="text-xs text-gray-400">ID: ${data.userId} <span class="text-gray-500 ml-2">(${timeStr})</span></p>
+                                </div>
                             </div>
                             <span class="text-4xl font-black text-yellow-400">${data.score}</span>
                         </div>`;
@@ -97,35 +146,45 @@
             });
         }
     </script>
-
     <style>
         body { margin: 0; overflow: hidden; background: #1a1a1a; touch-action: none; font-family: 'Microsoft JhengHei', sans-serif; }
         canvas { display: block; }
+        #ui { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; overflow-y: auto; padding: 20px; }
-        .avatar-option { width: 60px; height: 60px; border: 3px solid transparent; border-radius: 50%; cursor: pointer; transition: 0.2s; font-size: 35px; display: flex; align-items: center; justify-content: center; background: #333; }
-        .avatar-selected { border-color: #fbbf24; transform: scale(1.1); background: #444; }
+        .avatar-option { width: 65px; height: 65px; border: 3px solid transparent; border-radius: 50%; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; background: #333; overflow: hidden; }
+        .avatar-option img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-selected { border-color: #fbbf24; transform: scale(1.1); box-shadow: 0 0 10px #fbbf24; }
+        
         #screenshot-area { background: linear-gradient(145deg, #1e3a8a, #1e40af); padding: 30px; border-radius: 20px; text-align: center; color: white; border: 4px solid #fbbf24; width: 320px; }
+        input { color: black; }
+        
+        /* Line Browser Warning */
+        #line-warning { position: fixed; top: 0; left: 0; width: 100%; background: #fbbf24; color: #000; padding: 10px; text-align: center; z-index: 9999; font-weight: bold; }
     </style>
 </head>
 <body>
 
+    <div id="line-warning" class="hidden">
+        請點擊右上角選單 ➔ 選擇「以其他瀏覽器開啟」以獲得最佳體驗
+    </div>
+
     <div id="login-menu" class="overlay text-white">
-        <h1 class="text-3xl font-black text-yellow-500 mb-6 italic">2026 尾牙切水果大賽</h1>
+        <h1 class="text-3xl font-black text-yellow-500 mb-6 italic text-center leading-tight">2026 Meiloon<br>切水果大賽</h1>
         <div class="w-full max-w-xs space-y-4 text-black">
-            <input type="text" id="userId" placeholder="員工帳號" class="w-full p-3 rounded-lg text-center font-bold">
+            <input type="text" id="userId" placeholder="員工編號 / 或自行輸入帳號" class="w-full p-3 rounded-lg text-center font-bold">
             <input type="text" id="pName" placeholder="你的暱稱" class="w-full p-3 rounded-lg text-center font-bold">
-            <div class="grid grid-cols-4 gap-2 py-2" id="avatar-list">
-                <div class="avatar-option" onclick="setAvatar('👨‍💼', this)">👨‍💼</div>
-                <div class="avatar-option" onclick="setAvatar('👩‍💼', this)">👩‍💼</div>
-                <div class="avatar-option" onclick="setAvatar('🐱', this)">🐱</div>
-                <div class="avatar-option" onclick="setAvatar('🦁', this)">🦁</div>
-                <div class="avatar-option" onclick="setAvatar('🦊', this)">🦊</div>
-                <div class="avatar-option" onclick="setAvatar('🐶', this)">🐶</div>
-                <div class="avatar-option" onclick="setAvatar('🐵', this)">🐵</div>
-                <div class="avatar-option" onclick="setAvatar('🐼', this)">🐼</div>
+            
+            <p class="text-gray-400 text-sm text-center pt-2">選擇頭像</p>
+            <div class="grid grid-cols-4 gap-3 py-2 justify-items-center" id="avatar-container">
+                <!-- Avatars will be injected here -->
             </div>
         </div>
         <button onclick="bootGame()" class="mt-8 bg-gradient-to-r from-yellow-600 to-orange-600 px-16 py-4 rounded-full text-xl font-bold shadow-xl active:scale-95 transition">開始挑戰</button>
+
+        <div class="mt-12 text-center text-gray-500 text-xs space-y-1">
+            <p>© 2026 Meiloon All rights reserved.</p>
+            <p>Developed by MarsLin</p>
+        </div>
     </div>
 
     <div id="admin-board" class="overlay text-white hidden">
@@ -136,106 +195,271 @@
         </div>
         
         <h1 class="text-5xl font-black text-yellow-500 mb-8 italic drop-shadow-lg">LIVE 排行榜</h1>
-        <div id="admin-list" class="w-full max-w-2xl space-y-3"></div>
-        <p class="mt-8 text-xl">目前截止時間：<span id="current-deadline-text" class="text-red-500 font-bold">--</span></p>
+        <div id="admin-list" class="w-full max-w-2xl space-y-3 pb-20"></div>
+        <p class="mt-8 text-xl fixed bottom-10 bg-black/80 px-4 py-2 rounded">目前截止時間：<span id="current-deadline-text" class="text-red-500 font-bold">--</span></p>
     </div>
 
     <div id="result-screen" class="overlay text-white hidden">
+        <div id="final-image-container" class="hidden flex flex-col items-center">
+            <img id="generated-image" class="rounded-xl shadow-2xl mb-4 border border-gray-500" style="max-height: 60vh;">
+            <p class="text-yellow-400 font-bold text-lg animate-pulse mb-1">⬆ 請長按圖片加入照片 (Save to Photos) ⬆</p>
+            <p class="text-gray-400 text-sm mb-4">✨ 此圖片為領獎憑證，請妥善保存 ✨</p>
+            <button onclick="location.reload()" class="bg-gray-700 px-6 py-2 rounded-full">返回主頁</button>
+        </div>
+
         <div id="screenshot-area">
-            <div id="res-avatar" class="text-7xl mb-2">🦁</div>
+            <img id="res-avatar" src="" crossorigin="anonymous" class="w-24 h-24 rounded-full mx-auto mb-2 border-4 border-white bg-gray-800">
             <h2 id="res-name" class="text-2xl font-bold">暱稱</h2>
+            <p id="res-uid" class="text-sm text-yellow-200 font-mono mb-2">ID: --</p>
             <div class="my-6">
                 <p class="text-sm opacity-70">SCORE</p>
                 <p id="res-score" class="text-7xl font-black text-yellow-400">0</p>
             </div>
             <p id="res-time" class="text-xs opacity-50"></p>
         </div>
-        <button onclick="downloadImg()" class="mt-6 bg-green-600 px-10 py-3 rounded-lg font-bold flex items-center space-x-2">
-            <span>⬇ 下載成績單 (手機截圖用)</span>
-        </button>
-        <button onclick="location.reload()" class="mt-4 text-gray-400 underline">回主選單</button>
+        
+        <div id="result-buttons" class="mt-6 flex flex-col items-center space-y-3">
+            <button onclick="generateAndShowImage()" class="bg-green-600 hover:bg-green-500 px-10 py-3 rounded-lg font-bold flex items-center space-x-2 shadow-lg transition transform active:scale-95">
+                <span>📸 產生成績單 (長按儲存)</span>
+            </button>
+            <button onclick="location.reload()" class="text-gray-400 underline">回主選單</button>
+        </div>
+    </div>
+
+    <div id="ui">
+        <div class="p-4 text-white text-2xl font-bold flex justify-between">
+            <div id="liveScore">分數: 0</div>
+            <div id="liveLife" class="text-red-500">❤❤❤</div>
+        </div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        let selectedAvatar = "👨‍💼";
-        let score = 0, lives = 3, gameActive = false, fruits = [];
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        let fruits = [], trail = [];
+        let score = 0, lives = 3, gameActive = false;
+        let playerName = "", userId = "";
+        
+        // --- Sound Manager (Web Audio API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSliceSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            // Randomize pitch slightly for variety
+            const startFreq = 600 + Math.random() * 400;
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(startFreq, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
+            
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.15);
+        }
 
-        function setAvatar(emoji, el) {
+        // --- Avatars Configuration ---
+        // 4 Males, 4 Females, 8 Animals (All Local)
+        const avatars = [
+            // Row 1: Males
+            "assets/male1.png",
+            "assets/male2.png",
+            "assets/male3.png",
+            "assets/male4.png",
+            // Row 2: Females
+            "assets/female1.png",
+            "assets/female2.png",
+            "assets/female3.png",
+            "assets/female4.png",
+            // Row 3: Animals (1-4)
+            "assets/animal1.png",
+            "assets/animal2.png",
+            "assets/animal3.png",
+            "assets/animal4.png",
+            // Row 4: Animals (5-8)
+            "assets/animal5.png",
+            "assets/animal6.png",
+            "assets/animal7.png",
+            "assets/animal8.png"
+        ];
+        
+        let selectedAvatar = avatars[0]; 
+
+        function initAvatars() {
+            const container = document.getElementById('avatar-container');
+            container.innerHTML = avatars.map((url, index) => `
+                <div class="avatar-option ${index === 0 ? 'avatar-selected' : ''}" onclick="setAvatar('${url}', this)">
+                    <img src="${url}" crossorigin="anonymous" alt="avatar">
+                </div>
+            `).join('');
+        }
+
+        window.setAvatar = (url, el) => {
             document.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('avatar-selected'));
             el.classList.add('avatar-selected');
-            selectedAvatar = emoji;
-        }
-
-        function bootGame() {
-            if(!document.getElementById('userId').value || !document.getElementById('pName').value) return alert("請填寫帳號與暱稱");
-            document.getElementById('login-menu').style.display = 'none';
+            selectedAvatar = url;
+        };
+        
+        // --- Canvas Setup ---
+        function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            gameActive = true;
-            loop();
         }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+
+        const fruitTypes = [
+            { emoji: '🍎', color: '#ff4d4d' },
+            { emoji: '🍊', color: '#ffa502' },
+            { emoji: '🍉', color: '#2ed573' },
+            { emoji: '🍍', color: '#eccc68' },
+            { emoji: '🥝', color: '#7bed9f' }
+        ];
 
         class Fruit {
             constructor() {
                 this.x = Math.random() * (canvas.width - 60) + 30;
-                this.y = canvas.height + 20;
-                this.vx = (Math.random() - 0.5) * 8;
-                this.vy = -(Math.random() * 5 + 14);
-                this.emoji = ['🍎', '🍉', '🍍', '🥝', '🍊', '🍇'][Math.floor(Math.random()*6)];
+                this.y = canvas.height + 50;
+                this.type = fruitTypes[Math.floor(Math.random() * fruitTypes.length)];
+                this.vx = (Math.random() - 0.5) * 6;
+                this.vy = -(Math.random() * 5 + 13);
+                this.gravity = 0.25;
+                this.radius = 35;
                 this.sliced = false;
             }
-            update() { this.vy += 0.25; this.x += this.vx; this.y += this.vy; }
-            draw() { ctx.font="50px Arial"; ctx.fillText(this.emoji, this.x-25, this.y+20); }
+            update() {
+                this.vy += this.gravity;
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+            draw() {
+                ctx.font = "50px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(this.type.emoji, this.x, this.y);
+            }
         }
+
+        window.bootGame = () => {
+            userId = document.getElementById('userId').value;
+            playerName = document.getElementById('pName').value;
+            if(!userId || !playerName) {
+                alert("請填寫帳號與暱稱");
+                return;
+            }
+            document.getElementById('login-menu').style.display = 'none';
+            score = 0; lives = 3; fruits = []; gameActive = true;
+            updateUI();
+            loop();
+        }
+
+        function updateUI() {
+            document.getElementById('liveScore').innerText = `分數: ${score}`;
+            document.getElementById('liveLife').innerText = "❤".repeat(Math.max(0, lives));
+        }
+
+        function handleMove(e) {
+            if (!gameActive) return;
+            const x = e.touches ? e.touches[0].clientX : e.clientX;
+            const y = e.touches ? e.touches[0].clientY : e.clientY;
+            trail.push({x, y, age: 0});
+            
+            fruits.forEach((f) => {
+                if (!f.sliced && Math.hypot(f.x - x, f.y - y) < f.radius) {
+                    f.sliced = true;
+                    score += 10;
+                    playSliceSound();
+                    updateUI();
+                }
+            });
+        }
+
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); }, {passive: false});
 
         function loop() {
             if (!gameActive) return;
-            ctx.fillStyle = 'rgba(26,26,26,0.6)';
-            ctx.fillRect(0,0,canvas.width, canvas.height);
-            if(Math.random() < 0.04) fruits.push(new Fruit());
-            fruits.forEach((f, i) => {
-                f.update(); f.draw();
-                if(f.y > canvas.height + 50) { if(!f.sliced) lives--; fruits.splice(i,1); }
-            });
-            if(lives <= 0) finish();
+            ctx.fillStyle = 'rgba(26, 26, 26, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            for(let i=0; i<trail.length; i++) {
+                if(i==0) ctx.moveTo(trail[i].x, trail[i].y);
+                else ctx.lineTo(trail[i].x, trail[i].y);
+                trail[i].age++;
+            }
+            ctx.stroke();
+            trail = trail.filter(t => t.age < 10);
+
+            if (Math.random() < 0.03) fruits.push(new Fruit());
+
+            for (let i = fruits.length - 1; i >= 0; i--) {
+                fruits[i].update();
+                fruits[i].draw();
+                if (fruits[i].y > canvas.height + 100) {
+                    if (!fruits[i].sliced) { lives--; updateUI(); }
+                    fruits.splice(i, 1);
+                } else if (fruits[i].sliced) {
+                    fruits.splice(i, 1);
+                }
+            }
+
+            if (lives <= 0) endGame();
             else requestAnimationFrame(loop);
         }
 
-        // 手指/滑鼠切割邏輯
-        const handleCut = (e) => {
-            const x = e.touches ? e.touches[0].clientX : e.clientX;
-            const y = e.touches ? e.touches[0].clientY : e.clientY;
-            fruits.forEach(f => {
-                if(!f.sliced && Math.hypot(f.x-x, f.y-y) < 50) { f.sliced = true; score += 10; }
-            });
-        };
-        window.addEventListener('touchmove', (e) => { e.preventDefault(); handleCut(e); }, {passive: false});
-        window.addEventListener('mousemove', (e) => { if(e.buttons === 1) handleCut(e); });
-
-        async function finish() {
+        async function endGame() {
             gameActive = false;
-            const uid = document.getElementById('userId').value;
-            const name = document.getElementById('pName').value;
-            document.getElementById('res-avatar').innerText = selectedAvatar;
-            document.getElementById('res-name').innerText = name;
+            
+            // Direct assignment since we are using local images now
+            document.getElementById('res-avatar').src = selectedAvatar;
+            document.getElementById('res-name').innerText = playerName;
+            document.getElementById('res-uid').innerText = "ID: " + userId;
             document.getElementById('res-score').innerText = score;
             document.getElementById('res-time').innerText = "DATE: " + new Date().toLocaleString();
             document.getElementById('result-screen').classList.remove('hidden');
-            if (window.uploadScore) await window.uploadScore(uid, name, selectedAvatar, score);
+            
+            if (window.uploadScore) {
+                await window.uploadScore(userId, playerName, selectedAvatar, score);
+            }
         }
 
-        function downloadImg() {
-            html2canvas(document.querySelector("#screenshot-area")).then(c => {
-                const a = document.createElement('a');
-                a.download = `score_${score}.png`;
-                a.href = c.toDataURL();
-                a.click();
+        window.generateAndShowImage = () => {
+            const target = document.querySelector("#screenshot-area");
+            
+            // Temporary scale up for better resolution
+            const originalTransform = target.style.transform;
+            target.style.transform = "scale(1)"; 
+            
+            html2canvas(target, { 
+                useCORS: true, 
+                backgroundColor: null,
+                scale: 2 // High res
+            }).then(c => {
+                const imgData = c.toDataURL("image/png");
+                
+                // Switch UI to show the image
+                document.getElementById('screenshot-area').classList.add('hidden');
+                document.getElementById('result-buttons').classList.add('hidden');
+                
+                const imgEl = document.getElementById('generated-image');
+                imgEl.src = imgData;
+                document.getElementById('final-image-container').classList.remove('hidden');
+                
+                // Restore logic if needed, but we are in a 'done' state
             });
-        }
+        };
     </script>
 </body>
 </html>
