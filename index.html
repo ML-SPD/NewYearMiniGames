@@ -150,7 +150,11 @@
         body { margin: 0; overflow: hidden; background: #1a1a1a; touch-action: none; font-family: 'Microsoft JhengHei', sans-serif; }
         canvas { display: block; }
         #ui { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
-        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; overflow-y: auto; padding: 20px; }
+        
+        /* Scrollable Overlay Setup */
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 100; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .overlay-content { min-height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px 20px; }
+
         .avatar-option { width: 65px; height: 65px; border: 3px solid transparent; border-radius: 50%; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; background: #333; overflow: hidden; }
         .avatar-option img { width: 100%; height: 100%; object-fit: cover; }
         .avatar-selected { border-color: #fbbf24; transform: scale(1.1); box-shadow: 0 0 10px #fbbf24; }
@@ -169,60 +173,66 @@
     </div>
 
     <div id="login-menu" class="overlay text-white">
-        <h1 class="text-3xl font-black text-yellow-500 mb-6 italic text-center leading-tight">2026 Meiloon<br>切水果大賽</h1>
-        <div class="w-full max-w-xs space-y-4 text-black">
-            <input type="text" id="userId" placeholder="員工編號或自行輸入帳號" class="w-full p-3 rounded-lg text-center font-bold">
-            <input type="text" id="pName" placeholder="你的暱稱" class="w-full p-3 rounded-lg text-center font-bold">
-            
-            <p class="text-gray-400 text-sm text-center pt-2">選擇頭像</p>
-            <div class="grid grid-cols-4 gap-3 py-2 justify-items-center" id="avatar-container">
-                <!-- Avatars will be injected here -->
+        <div class="overlay-content">
+            <h1 class="text-3xl font-black text-yellow-500 mb-6 italic text-center leading-tight">2026 Meiloon - 切水果大賽</h1>
+            <div class="w-full max-w-xs space-y-4 text-black">
+                <input type="text" id="userId" placeholder="員工編號或自行輸入帳號" class="w-full p-3 rounded-lg text-center font-bold">
+                <input type="text" id="pName" placeholder="你的暱稱" class="w-full p-3 rounded-lg text-center font-bold">
+                
+                <p class="text-gray-400 text-sm text-center pt-2">選擇頭像</p>
+                <div class="grid grid-cols-4 gap-3 py-2 justify-items-center" id="avatar-container">
+                    <!-- Avatars will be injected here -->
+                </div>
             </div>
-        </div>
-        <button onclick="bootGame()" class="mt-8 bg-gradient-to-r from-yellow-600 to-orange-600 px-16 py-4 rounded-full text-xl font-bold shadow-xl active:scale-95 transition">開始挑戰</button>
+            <button onclick="bootGame()" class="mt-8 bg-gradient-to-r from-yellow-600 to-orange-600 px-16 py-4 rounded-full text-xl font-bold shadow-xl active:scale-95 transition">開始挑戰</button>
 
-        <div class="mt-12 text-center text-gray-500 text-xs space-y-1">
-            <p>© 2026 Meiloon All rights reserved.</p>
-            <p>Developed by MarsLin</p>
+            <div class="mt-12 text-center text-gray-500 text-xs space-y-1">
+                <p>© 2026 Meiloon All rights reserved.</p>
+                <p>Developed by MarsLin</p>
+            </div>
         </div>
     </div>
 
     <div id="admin-board" class="overlay text-white hidden">
-        <div class="absolute top-10 right-10 bg-gray-900 p-4 rounded-xl border border-gray-700 text-sm">
-            <p class="mb-2 text-yellow-500 font-bold">後台管理</p>
-            <input type="datetime-local" id="deadline-input" class="text-black p-1 rounded mb-2 w-full">
-            <button onclick="changeDeadline()" class="bg-blue-600 px-4 py-1 rounded w-full">更新截止時間</button>
+        <div class="overlay-content">
+            <div class="absolute top-10 right-10 bg-gray-900 p-4 rounded-xl border border-gray-700 text-sm">
+                <p class="mb-2 text-yellow-500 font-bold">後台管理</p>
+                <input type="datetime-local" id="deadline-input" class="text-black p-1 rounded mb-2 w-full">
+                <button onclick="changeDeadline()" class="bg-blue-600 px-4 py-1 rounded w-full">更新截止時間</button>
+            </div>
+            
+            <h1 class="text-5xl font-black text-yellow-500 mb-8 italic drop-shadow-lg">LIVE 排行榜</h1>
+            <div id="admin-list" class="w-full max-w-2xl space-y-3 pb-20"></div>
+            <p class="mt-8 text-xl fixed bottom-10 bg-black/80 px-4 py-2 rounded">目前截止時間：<span id="current-deadline-text" class="text-red-500 font-bold">--</span></p>
         </div>
-        
-        <h1 class="text-5xl font-black text-yellow-500 mb-8 italic drop-shadow-lg">LIVE 排行榜</h1>
-        <div id="admin-list" class="w-full max-w-2xl space-y-3 pb-20"></div>
-        <p class="mt-8 text-xl fixed bottom-10 bg-black/80 px-4 py-2 rounded">目前截止時間：<span id="current-deadline-text" class="text-red-500 font-bold">--</span></p>
     </div>
 
     <div id="result-screen" class="overlay text-white hidden">
-        <div id="final-image-container" class="hidden flex flex-col items-center">
-            <img id="generated-image" class="rounded-xl shadow-2xl mb-4 border border-gray-500" style="max-height: 60vh;">
-            <p class="text-yellow-400 font-bold text-lg animate-pulse mb-1">⬆ 可長按圖片儲存 (儲存到照片) ⬆</p>
-            <p class="text-gray-400 text-sm mb-4">✨ 此圖片為領獎憑證，請妥善保存 ✨</p>
-            <button onclick="location.reload()" class="bg-gray-700 px-6 py-2 rounded-full">返回主頁</button>
-        </div>
-
-        <div id="screenshot-area">
-            <img id="res-avatar" src="" crossorigin="anonymous" class="w-24 h-24 rounded-full mx-auto mb-2 border-4 border-white bg-gray-800">
-            <h2 id="res-name" class="text-2xl font-bold">暱稱</h2>
-            <p id="res-uid" class="text-sm text-yellow-200 font-mono mb-2">ID: --</p>
-            <div class="my-6">
-                <p class="text-sm opacity-70">SCORE</p>
-                <p id="res-score" class="text-7xl font-black text-yellow-400">0</p>
+        <div class="overlay-content">
+            <div id="final-image-container" class="hidden flex flex-col items-center">
+                <img id="generated-image" class="rounded-xl shadow-2xl mb-4 border border-gray-500" style="max-height: 60vh;">
+                <p class="text-yellow-400 font-bold text-lg animate-pulse mb-1">⬆ 可長按圖片儲存 (儲存到照片) ⬆</p>
+                <p class="text-gray-400 text-sm mb-4 text-center">✨ 此圖片為領獎憑證，請妥善保存 ✨</p>
+                <button onclick="location.reload()" class="bg-gray-700 px-6 py-2 rounded-full">返回主頁</button>
             </div>
-            <p id="res-time" class="text-xs opacity-50"></p>
-        </div>
-        
-        <div id="result-buttons" class="mt-6 flex flex-col items-center space-y-3">
-            <button onclick="generateAndShowImage()" class="bg-green-600 hover:bg-green-500 px-10 py-3 rounded-lg font-bold flex items-center space-x-2 shadow-lg transition transform active:scale-95">
-                <span>📸 產生成績單 (長按儲存)</span>
-            </button>
-            <button onclick="location.reload()" class="text-gray-400 underline">回主選單</button>
+
+            <div id="screenshot-area">
+                <img id="res-avatar" src="" crossorigin="anonymous" class="w-24 h-24 rounded-full mx-auto mb-2 border-4 border-white bg-gray-800">
+                <h2 id="res-name" class="text-2xl font-bold">暱稱</h2>
+                <p id="res-uid" class="text-sm text-yellow-200 font-mono mb-2">ID: --</p>
+                <div class="my-6">
+                    <p class="text-sm opacity-70">SCORE</p>
+                    <p id="res-score" class="text-7xl font-black text-yellow-400">0</p>
+                </div>
+                <p id="res-time" class="text-xs opacity-50"></p>
+            </div>
+            
+            <div id="result-buttons" class="mt-6 flex flex-col items-center space-y-3">
+                <button onclick="generateAndShowImage()" class="bg-green-600 hover:bg-green-500 px-10 py-3 rounded-lg font-bold flex items-center space-x-2 shadow-lg transition transform active:scale-95">
+                    <span>📸 產生成績單 (長按儲存)</span>
+                </button>
+                <button onclick="location.reload()" class="text-gray-400 underline">回主選單</button>
+            </div>
         </div>
     </div>
 
@@ -283,9 +293,9 @@
             "assets/animal1.png",
             "assets/animal2.png",
             "assets/animal3.png",
-            "assets/animal5.png"
+            "assets/animal4.png"
             // Row 4: Animals (5-8)
-//             "assets/animal4.png",
+//             "assets/animal5.png",
 //             "assets/animal6.png",
 //             "assets/animal7.png",
 //             "assets/animal8.png"
