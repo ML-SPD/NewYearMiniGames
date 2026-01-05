@@ -49,7 +49,6 @@
 
             initAvatars();
 
-            // --- 監聽雲端設定 (截止時間、初始生命) ---
             onSnapshot(doc(db, "config", "gameSettings"), (docSnap) => {
                 if(docSnap.exists()) {
                     const data = docSnap.data();
@@ -58,7 +57,6 @@
                         updateDeadlineDisplay();
                     }
                     if(data.maxLives) window.maxLives = data.maxLives;
-                    console.log("雲端設定已更新:", data);
                 }
             });
 
@@ -95,7 +93,6 @@
         };
 
         window.uploadScore = async (uid, name, avatarUrl, score) => {
-            // 關鍵修改：檢查【遊戲開始時間】而非結束時間
             if (window.gameStartTime > new Date(window.gameDeadline)) {
                 alert("抱歉，您開始挑戰時已超過活動截止時間，分數將不列入排行榜。");
                 return;
@@ -126,6 +123,12 @@
                 await setDoc(doc(db, "config", "gameSettings"), { maxLives: val }, { merge: true });
                 alert("初始生命值已更新為: " + val);
             } catch(e) { alert("設定失敗: " + e); }
+        };
+
+        // Admin Panel Toggle Logic
+        window.toggleAdminSettings = () => {
+            const panel = document.getElementById('admin-settings-panel');
+            panel.classList.toggle('hidden');
         };
 
         function startLeaderboardStream() {
@@ -172,14 +175,18 @@
         #screenshot-area { background: linear-gradient(145deg, #1e3a8a, #1e40af); padding: 30px; border-radius: 20px; text-align: center; color: white; border: 4px solid #fbbf24; width: 320px; }
         input { color: black; }
         #line-warning { position: fixed; top: 0; left: 0; width: 100%; background: #fbbf24; color: #000; padding: 10px; text-align: center; z-index: 9999; font-weight: bold; }
+        
+        /* Admin Button */
+        .admin-btn { position: fixed; top: 20px; right: 20px; z-index: 200; background: rgba(255, 255, 255, 0.2); padding: 10px; border-radius: 50%; backdrop-filter: blur(5px); }
     </style>
 </head>
 <body>
-    <div id="line-warning" class="hidden">請點擊右上角選單 ➔ 選擇「以其他瀏覽器開啟」以獲得最佳體驗</div>
+    <div id="line-warning" class="hidden">請點擊選單 (通常在角落) ➔ 選擇「在瀏覽器中開啟」以獲得最佳體驗</div>
+    
     <div id="login-menu" class="overlay text-white">
         <div class="overlay-content">
             <h1 class="text-xl font-black text-yellow-500 mb-6 italic text-center leading-tight">2026 Meiloon - 切水果大賽</h1>
-            <div class="w-full max-sm space-y-4 text-black">
+            <div class="w-full max-w-sm space-y-4 text-black">
                 <div class="flex space-x-2">
                     <input type="text" id="userId" placeholder="工號" class="flex-1 p-3 rounded-lg text-center font-bold text-sm min-w-0">
                     <input type="text" id="pName" placeholder="暱稱" class="flex-1 p-3 rounded-lg text-center font-bold text-sm min-w-0">
@@ -196,28 +203,40 @@
     </div>
 
     <div id="admin-board" class="overlay text-white hidden">
-        <div class="overlay-content">
-            <div class="absolute top-10 right-10 bg-gray-900 p-4 rounded-xl border border-gray-700 text-sm">
-                <p class="mb-2 text-yellow-500 font-bold">後台管理</p>
-                <div class="mb-2">
-                    <label class="block text-gray-400 text-xs">截止時間</label>
-                    <input type="datetime-local" id="deadline-input" class="text-black p-1 rounded w-full">
-                    <button onclick="changeDeadline()" class="bg-blue-600 px-4 py-1 rounded w-full mt-1">雲端同步</button>
-                </div>
-                <div class="border-t border-gray-700 pt-2 mt-2">
-                    <label class="block text-gray-400 text-xs">初始生命 (3-7)</label>
+        <!-- Settings Toggle Button -->
+        <button onclick="toggleAdminSettings()" class="admin-btn text-2xl">⚙️</button>
+
+        <div class="overlay-content pt-20"> <!-- Added padding top for button -->
+            <!-- Settings Panel (Hidden by default, toggled) -->
+            <div id="admin-settings-panel" class="hidden bg-gray-900/95 p-6 rounded-2xl border border-gray-600 shadow-2xl mb-8 w-full max-w-sm relative">
+                <h3 class="text-yellow-500 font-bold mb-4 text-center border-b border-gray-700 pb-2">活動控制台</h3>
+                
+                <div class="mb-4">
+                    <label class="block text-gray-400 text-xs mb-1">活動截止時間</label>
                     <div class="flex space-x-2">
-                        <input type="number" id="lives-input" min="3" max="7" placeholder="3" class="text-black p-1 rounded w-16 text-center">
-                        <button onclick="updateLivesConfig()" class="bg-green-600 px-2 py-1 rounded flex-1">同步</button>
+                        <input type="datetime-local" id="deadline-input" class="text-black p-2 rounded flex-1">
+                        <button onclick="changeDeadline()" class="bg-blue-600 px-3 py-2 rounded text-sm font-bold">同步</button>
                     </div>
                 </div>
-                <div class="border-t border-gray-700 pt-2 mt-2">
-                    <button onclick="clearAllScores()" class="bg-red-600 px-4 py-2 rounded w-full text-xs font-bold">⚠ 清空所有分數</button>
+                
+                <div class="mb-4">
+                    <label class="block text-gray-400 text-xs mb-1">初始生命 (3-7)</label>
+                    <div class="flex space-x-2">
+                        <input type="number" id="lives-input" min="3" max="7" placeholder="3" class="text-black p-2 rounded w-20 text-center font-bold">
+                        <button onclick="updateLivesConfig()" class="bg-green-600 px-3 py-2 rounded text-sm font-bold flex-1">同步生命值</button>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-gray-700">
+                    <button onclick="clearAllScores()" class="bg-red-600 hover:bg-red-700 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
+                        <span>⚠ 清空所有排行榜數據</span>
+                    </button>
                 </div>
             </div>
-            <h1 class="text-5xl font-black text-yellow-500 mb-8 italic drop-shadow-lg">LIVE 排行榜</h1>
+            
+            <h1 class="text-4xl font-black text-yellow-500 mb-6 italic drop-shadow-lg">LIVE 排行榜</h1>
+            <p class="mb-6 text-sm bg-black/50 px-3 py-1 rounded-full border border-yellow-500/30">截止時間：<span id="current-deadline-text" class="text-yellow-400 font-bold">--</span></p>
             <div id="admin-list" class="w-full max-w-2xl space-y-3 pb-20"></div>
-            <p class="mt-8 text-xl fixed bottom-10 bg-black/80 px-4 py-2 rounded">目前截止時間：<span id="current-deadline-text" class="text-red-500 font-bold">--</span></p>
         </div>
     </div>
 
@@ -321,14 +340,14 @@
                 this.y = canvas.height + 50;
                 this.type = fruitTypes[Math.floor(Math.random() * fruitTypes.length)];
                 this.vx = (Math.random() - 0.5) * 6;
-                this.vy = -(Math.random() * 6 + 15); // 更高的初始速度
-                this.gravity = 0.22; // 更輕的重力
+                this.vy = -(Math.random() * 6 + 15);
+                this.gravity = 0.22;
                 this.radius = 35; this.sliced = false; this.isBomb = false;
             }
             update() {
                 this.vy += this.gravity; this.x += this.vx; this.y += this.vy;
                 if (this.x < 30 || this.x > canvas.width - 30) {
-                    this.vx = 0; // 撞牆停止水平移動，直接開始下墜
+                    this.vx = 0;
                 }
             }
             draw() { ctx.font = "50px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(this.type.emoji, this.x, this.y); }
@@ -344,7 +363,6 @@
             localStorage.setItem('meiloon_userid', userId);
             localStorage.setItem('meiloon_pname', playerName);
 
-            // --- 紀錄開始時間與截止檢查 ---
             window.gameStartTime = new Date();
             if (window.gameStartTime > new Date(window.gameDeadline)) {
                 alert("提醒：活動時間已截止，本次遊玩分數將不納入排行榜。");
