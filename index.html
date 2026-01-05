@@ -99,7 +99,12 @@
             }
             try {
                 await addDoc(collection(db, "scores"), {
-                    userId: uid, playerName: name, avatar: avatarUrl, score: score, createdAt: serverTimestamp()
+                    userId: uid, 
+                    playerName: name, 
+                    avatar: avatarUrl, 
+                    score: score, 
+                    createdAt: serverTimestamp(),
+                    playedAt: window.gameStartTime // Record actual start time
                 });
             } catch (e) { console.error("Firebase Error: ", e); }
         };
@@ -146,8 +151,9 @@
                 const sortedList = Object.values(userBest).sort((a,b) => b.score - a.score).slice(0, 10);
                 sortedList.forEach((data, index) => {
                     let timeStr = "";
-                    if (data.createdAt && data.createdAt.toDate) {
-                        const date = data.createdAt.toDate();
+                    const ts = data.playedAt || data.createdAt; // Use playedAt, fallback to createdAt
+                    if (ts && ts.toDate) {
+                        const date = ts.toDate();
                         timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2,'0')}`;
                     }
                     listEl.innerHTML += `
@@ -181,7 +187,7 @@
     </style>
 </head>
 <body>
-    <div id="line-warning" class="hidden">請點擊選單 (通常在角落) ➔ 選擇「在瀏覽器中開啟」以獲得最佳體驗</div>
+    <div id="line-warning" class="hidden">請點擊選單 (右下角) ➔ 選擇「在瀏覽器中開啟」以獲得最佳體驗</div>
     
     <div id="login-menu" class="overlay text-white">
         <div class="overlay-content">
@@ -340,8 +346,8 @@
                 this.y = canvas.height + 50;
                 this.type = fruitTypes[Math.floor(Math.random() * fruitTypes.length)];
                 this.vx = (Math.random() - 0.5) * 6;
-                this.vy = -(Math.random() * 6 + 15);
-                this.gravity = 0.22;
+                this.vy = -(Math.random() * 5 + 18); // Higher toss (18-23)
+                this.gravity = 0.18; // Slower fall
                 this.radius = 35; this.sliced = false; this.isBomb = false;
             }
             update() {
