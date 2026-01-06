@@ -44,7 +44,7 @@
             if(savedId) document.getElementById('userId').value = savedId;
             if(savedName) document.getElementById('pName').value = savedName;
             initAvatars();
-            onSnapshot(doc(db, "config", "gameSettings"), (docSnap) => {
+            onSnapshot(doc(db, "config", "moleSettings"), (docSnap) => {
                 if(docSnap.exists()) {
                     const data = docSnap.data();
                     if(data.gameDeadline) {
@@ -79,7 +79,7 @@
             const newTime = document.getElementById('deadline-input').value;
             if(newTime) {
                 try {
-                    await setDoc(doc(db, "config", "gameSettings"), { gameDeadline: newTime }, { merge: true });
+                    await setDoc(doc(db, "config", "moleSettings"), { gameDeadline: newTime }, { merge: true });
                     alert("雲端截止時間已同步為: " + newTime);
                 } catch(e) { alert("同步失敗: " + e); }
             }
