@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>2026 Meiloon 地鼠大亂鬥</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, deleteDoc, doc, getDocs, writeBatch, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCxTaWg2WJ1_01w4sOe1FKXXx6idNfOWVc",
+            authDomain: "ml-app-test-website.firebaseapp.com",
+            projectId: "ml-app-test-website",
+            storageBucket: "ml-app-test-website.firebasestorage.app",
+            messagingSenderId: "24622595377",
+            appId: "1:24622595377:web:eef25cf878daf5c1af0410"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        window.db = db;
+        window.collection = collection;
+        window.addDoc = addDoc;
+        window.serverTimestamp = serverTimestamp;
+        window.doc = doc;
+        window.deleteDoc = deleteDoc;
+        window.getDocs = getDocs;
+        window.writeBatch = writeBatch;
+        window.setDoc = setDoc;
+
+        window.gameDeadline = "2026-02-06T19:30"; 
+
+        window.onload = () => {
+            if (navigator.userAgent.includes("Line")) {
+                document.getElementById('line-warning').classList.remove('hidden');
+            }
+            const savedId = localStorage.getItem('meiloon_userid');
+            const savedName = localStorage.getItem('meiloon_pname');
+            if(savedId) document.getElementById('userId').value = savedId;
+            if(savedName) document.getElementById('pName').value = savedName;
+            initAvatars();
+            onSnapshot(doc(db, "config", "gameSettings"), (docSnap) => {
+                if(docSnap.exists()) {
+                    const data = docSnap.data();
+                    if(data.gameDeadline) {
+                        window.gameDeadline = data.gameDeadline;
+                        updateDeadlineDisplay();
+                    }
+                }
+            });
+            if (isAdminMode) {
+                const pass = prompt("請輸入管理員密碼：");
+                if (pass === ADMIN_PASSWORD) {
+                    document.getElementById('login-menu').style.display = 'none';
+                    document.getElementById('admin-board').classList.remove('hidden');
+                    startLeaderboardStream();
+                } else {
+                    alert("密碼錯誤！");
+                    window.location.href = window.location.pathname;
+                }
+            }
+        };
+
+        const ADMIN_PASSWORD = "8888"; 
+        const urlParams = new URLSearchParams(window.location.search);
+        const isAdminMode = urlParams.get('admin') === 'true';
+
+        function updateDeadlineDisplay() {
+            const display = document.getElementById('current-deadline-text');
+            if(display) display.innerText = window.gameDeadline.replace("T", " ");
+        }
+
+        window.changeDeadline = async () => {
+            const newTime = document.getElementById('deadline-input').value;
+            if(newTime) {
+                try {
+                    await setDoc(doc(db, "config", "gameSettings"), { gameDeadline: newTime }, { merge: true });
+                    alert("雲端截止時間已同步為: " + newTime);
+                } catch(e) { alert("同步失敗: " + e); }
+            }
+        };
+
+        window.uploadScore = async (uid, name, avatarUrl, score) => {
+            if (window.gameStartTime > new Date(window.gameDeadline)) {
+                alert("抱歉，您開始挑戰時已超過活動截止時間，分數將不列入排行榜。");
+                return;
+            }
+            try {
+                await addDoc(collection(db, "scores_whackamole"), {
+                    userId: uid, playerName: name, avatar: avatarUrl, score: score, createdAt: serverTimestamp(), playedAt: window.gameStartTime 
+                });
+            } catch (e) { console.error("Firebase Error: ", e); }
+        };
+        
+        window.clearAllScores = async () => {
+            if(!confirm("確定要清空【地鼠大亂鬥】排行榜數據嗎？此動作無法復原！")) return;
+            try {
+                const q = query(collection(db, "scores_whackamole"));
+                const snapshot = await getDocs(q);
+                const batch = writeBatch(db);
+                snapshot.forEach(doc => { batch.delete(doc.ref); });
+                await batch.commit();
+                alert("排行榜已成功清空！");
+            } catch(e) { alert("清空失敗: " + e); }
+        };
+
+        window.toggleAdminSettings = () => {
+            const panel = document.getElementById('admin-settings-panel');
+            panel.classList.toggle('hidden');
+        };
+
+        function startLeaderboardStream() {
+            const q = query(collection(db, "scores_whackamole"), orderBy("score", "desc"), limit(60));
+            onSnapshot(q, (snapshot) => {
+                const listEl = document.getElementById('admin-list');
+                listEl.innerHTML = "";
+                let rawData = [];
+                snapshot.forEach(doc => { rawData.push(doc.data()); });
+                const userBest = {};
+                rawData.forEach(d => {
+                    const uid = String(d.userId).trim();
+                    if (!userBest[uid] || d.score > userBest[uid].score) userBest[uid] = d;
+                });
+                const sortedList = Object.values(userBest).sort((a,b) => b.score - a.score).slice(0, 10);
+                sortedList.forEach((data, index) => {
+                    let timeStr = "";
+                    const ts = data.playedAt || data.createdAt;
+                    if (ts && ts.toDate) {
+                        const date = ts.toDate();
+                        timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2,'0')}`;
+                    }
+                    listEl.innerHTML += `
+                        <div class="flex items-center justify-between bg-gray-800 p-4 rounded-xl border-l-4 ${index < 3 ? 'border-green-500 shadow-[0_0_15px_rgba(74,222,128,0.3)]' : 'border-blue-500'}">
+                            <div class="flex items-center space-x-4">
+                                <span class="text-2xl font-black w-8 text-white">${index + 1}</span>
+                                <img src="${data.avatar}" crossorigin="anonymous" class="w-12 h-12 rounded-full bg-gray-700">
+                                <div><p class="font-bold text-xl text-white">${data.playerName}</p><p class="text-xs text-gray-400">ID: ${data.userId} <span class="text-gray-500 ml-2">(${timeStr})</span></p></div>
+                            </div>
+                            <span class="text-4xl font-black text-green-400">${data.score}</span>
+                        </div>`;
+                });
+            });
+        }
+    </script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Microsoft JhengHei', sans-serif; }
+        #ui { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; z-index: 50; }
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 100; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .overlay-content { min-height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px 10px; }
+        .avatar-option { width: 65px; height: 65px; border: 3px solid transparent; border-radius: 50%; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; background: #333; overflow: hidden; }
+        .avatar-option img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-selected { border-color: #4ade80; transform: scale(1.1); box-shadow: 0 0 10px #4ade80; }
+        #screenshot-area { background: linear-gradient(145deg, #064e3b, #065f46); padding: 30px; border-radius: 20px; text-align: center; color: white; border: 4px solid #4ade80; width: 320px; }
+        input { color: black; }
+        #line-warning { position: fixed; top: 0; left: 0; width: 100%; background: #fbbf24; color: #000; padding: 10px; text-align: center; z-index: 9999; font-weight: bold; }
+        .admin-btn { position: fixed; top: 20px; right: 20px; z-index: 200; background: rgba(255, 255, 255, 0.2); padding: 10px; border-radius: 50%; backdrop-filter: blur(5px); }
+
+        /* Whack-a-Mole Styles */
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            width: 90%;
+            max-width: 400px;
+            margin: 100px auto 0;
+            z-index: 10;
+            position: relative;
+        }
+        .hole {
+            background-color: #3e2723;
+            border-radius: 50%;
+            aspect-ratio: 1 / 1;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 10px 20px rgba(0,0,0,0.5);
+            border-bottom: 5px solid #5d4037;
+            cursor: pointer;
+        }
+        .mole, .bomb, .boss {
+            width: 80%;
+            height: 80%;
+            position: absolute;
+            bottom: -100%; 
+            left: 10%;
+            transition: bottom 0.1s ease-out;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center bottom;
+        }
+        .hole.up .mole, .hole.up .bomb, .hole.up .boss {
+            bottom: 0;
+            pointer-events: auto; 
+        }
+        .hole:active { transform: scale(0.98); }
+        .boss { background-image: url('assets/groundhogBoss.png'); }
+        .bomb { font-size: 55px; } 
+    </style>
+</head>
+<body>
+    <div id="line-warning" class="hidden">請點擊選單 (右下角) ➔ 選擇「在瀏覽器中開啟」以獲得最佳體驗</div>
+    
+    <div id="login-menu" class="overlay text-white">
+        <div class="overlay-content">
+            <img src="assets/logo-n.svg" alt="Meiloon Logo" class="h-16 mb-6 drop-shadow-lg">
+            <h1 class="text-xl font-black text-green-400 mb-6 italic text-center leading-tight">2026 Meiloon - 地鼠大亂鬥</h1>
+            <div class="w-full max-w-sm space-y-4 text-black">
+                <div class="flex space-x-2">
+                    <input type="text" id="userId" placeholder="工號" class="flex-1 p-3 rounded-lg text-center font-bold text-sm min-w-0">
+                    <input type="text" id="pName" placeholder="暱稱" class="flex-1 p-3 rounded-lg text-center font-bold text-sm min-w-0">
+                </div>
+                <p class="text-gray-400 text-sm text-center pt-2">選擇頭像</p>
+                <div class="grid grid-cols-4 gap-3 py-2 justify-items-center" id="avatar-container"></div>
+            </div>
+            <button onclick="bootGame()" class="mt-8 bg-gradient-to-r from-green-600 to-teal-600 px-16 py-4 rounded-full text-xl font-bold shadow-xl active:scale-95 transition">開始挑戰</button>
+            <div class="mt-12 text-center text-gray-500 text-xs space-y-1">
+                <p>© 2026 Meiloon All rights reserved.</p>
+                <p>Developed by MarsLin</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-board" class="overlay text-white hidden">
+        <button onclick="toggleAdminSettings()" class="admin-btn text-2xl">⚙️</button>
+        <div class="overlay-content pt-20">
+            <div id="admin-settings-panel" class="hidden bg-gray-900/95 p-6 rounded-2xl border border-gray-600 shadow-2xl mb-8 w-full max-w-sm relative">
+                <h3 class="text-green-500 font-bold mb-4 text-center border-b border-gray-700 pb-2">活動控制台</h3>
+                <div class="mb-4">
+                    <label class="block text-gray-400 text-xs mb-1">活動截止時間</label>
+                    <div class="flex space-x-2">
+                        <input type="datetime-local" id="deadline-input" class="text-black p-2 rounded flex-1">
+                        <button onclick="changeDeadline()" class="bg-blue-600 px-3 py-2 rounded text-sm font-bold">同步</button>
+                    </div>
+                </div>
+                <div class="pt-4 border-t border-gray-700">
+                    <button onclick="clearAllScores()" class="bg-red-600 hover:bg-red-700 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
+                        <span>⚠ 清空地鼠排行榜數據</span>
+                    </button>
+                </div>
+            </div>
+            <div class="text-center mb-6">
+                <img src="assets/logo-n.svg" alt="Meiloon Logo" class="h-16 mx-auto mb-4 drop-shadow-lg">
+                <h1 class="text-4xl font-black text-green-500 italic drop-shadow-lg">地鼠王 排行榜</h1>
+            </div>
+
+            <p class="mb-6 text-sm bg-black/50 px-3 py-1 rounded-full border border-green-500/30">截止時間：<span id="current-deadline-text" class="text-green-400 font-bold">--</span></p>
+            <div id="admin-list" class="w-full max-w-2xl space-y-3 pb-20"></div>
+
+            <div class="mt-10 text-center text-gray-500 text-xs space-y-1 pb-4">
+                <p>© 2026 Meiloon All rights reserved.</p>
+                <p>Developed by MarsLin</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="result-screen" class="overlay text-white hidden">
+        <div class="overlay-content">
+            <div id="final-image-container" class="hidden flex flex-col items-center">
+                <img id="generated-image" class="rounded-xl shadow-2xl mb-4 border border-gray-500" style="max-height: 60vh;">
+                <p class="text-green-400 font-bold text-lg animate-pulse mb-1">⬆ 可長按圖片儲存 ⬆</p>
+                <p class="text-gray-400 text-sm mb-4 text-center">✨ 領獎憑證，請妥善保存 ✨</p>
+                <button onclick="location.reload()" class="bg-gray-700 px-6 py-2 rounded-full">返回主頁</button>
+            </div>
+            <div id="screenshot-area">
+                <p class="text-xs font-bold tracking-widest opacity-80 mb-2">2026 Meiloon - 地鼠大亂鬥</p>
+                <img id="res-avatar" src="" crossorigin="anonymous" class="w-24 h-24 rounded-full mx-auto mb-2 border-4 border-white bg-gray-800">
+                <h2 id="res-name" class="text-2xl font-bold">暱稱</h2>
+                <p id="res-uid" class="text-sm text-green-200 font-mono mb-2">ID: --</p>
+                <div class="my-6">
+                    <p class="text-sm opacity-70">SCORE</p>
+                    <p id="res-score" class="text-7xl font-black text-green-400">0</p>
+                </div>
+                <p id="res-time" class="text-xs opacity-50"></p>
+            </div>
+            <div id="result-buttons" class="mt-6 flex flex-col items-center space-y-3">
+                <button onclick="generateAndShowImage()" class="bg-green-600 hover:bg-green-500 px-10 py-3 rounded-lg font-bold flex items-center space-x-2 shadow-lg transition transform active:scale-95"><span>📸 產生成績單</span></button>
+                <button onclick="location.reload()" class="text-gray-400 underline">回主選單</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ui">
+        <div class="p-4 text-white text-2xl font-bold flex justify-between">
+            <div id="liveScore">分數: 0</div>
+            <div id="liveTimer" class="text-yellow-400 font-mono">60s</div>
+        </div>
+    </div>
+
+    <div class="game-board">
+        <div class="hole" onclick="hit(this)"></div>
+        <div class="hole" onclick="hit(this)"></div>
+        <div class="hole" onclick="hit(this)"></div>
+        <div class="hole" onclick="hit(this)"></div>
+        <div class="hole" onclick="hit(this)"></div>
+        <div class="hole" onclick="hit(this)"></div>
+        <div class="hole" onclick="hit(this)"></div>
+        <div class="hole" onclick="hit(this)"></div>
+        <div class="hole" onclick="hit(this)"></div>
+    </div>
+
+    <div class="mt-10 w-full max-w-md mx-auto px-4 py-4 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 text-white pointer-events-none">
+        <div class="grid grid-cols-3 gap-2 text-center items-end">
+            <div class="space-y-2">
+                <div class="flex justify-center -space-x-4">
+                    <img src="assets/groundhog1.png" class="w-8 h-8 drop-shadow-md">
+                    <img src="assets/groundhog2.png" class="w-8 h-8 drop-shadow-md">
+                    <img src="assets/groundhog3.png" class="w-8 h-8 drop-shadow-md">
+                </div>
+                <p class="text-xs font-bold text-green-400">+10分</p>
+            </div>
+            <div class="space-y-2 border-x border-white/10">
+                <div class="flex justify-center">
+                    <img src="assets/groundhogBoss.png" class="w-10 h-10 drop-shadow-md">
+                </div>
+                <p class="text-xs font-bold text-yellow-400">+30分</p>
+            </div>
+            <div class="space-y-2">
+                <div class="flex justify-center space-x-1 text-2xl"><span>💣</span><span>🧨</span></div>
+                <p class="text-xs font-bold text-red-400">-3秒</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="countdown-overlay" class="overlay text-white hidden flex items-center justify-center pointer-events-none" style="background: rgba(0,0,0,0.7); z-index: 200;">
+        <div id="countdown-number" class="text-9xl font-black text-yellow-400 animate-ping">3</div>
+    </div>
+
+    <script>
+        let score = 0, timeLeft = 60, gameActive = false;
+        let playerName = "", userId = "";
+        let gameTimer, moleLoop;
+        let bossCount = 0;
+        const holes = document.querySelectorAll('.hole');
+        const groundhogImages = ['assets/groundhog1.png', 'assets/groundhog2.png', 'assets/groundhog3.png'];
+        
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playHitSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        }
+        function playBombSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+        }
+
+        const avatars = ["assets/male1.png", "assets/male2.png", "assets/male3.png", "assets/male4.png", "assets/female1.png", "assets/female2.png", "assets/female3.png", "assets/female4.png", "assets/animal1.png", "assets/animal2.png", "assets/animal3.png", "assets/animal4.png"];
+        let selectedAvatar = avatars[0]; 
+        function initAvatars() {
+            const container = document.getElementById('avatar-container');
+            container.innerHTML = avatars.map((url, index) => `
+                <div class="avatar-option ${index === 0 ? 'avatar-selected' : ''}" onclick="setAvatar('${url}', this)">
+                    <img src="${url}" crossorigin="anonymous" alt="avatar">
+                </div>
+            `).join('');
+        }
+        window.setAvatar = (url, el) => {
+            document.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('avatar-selected'));
+            el.classList.add('avatar-selected');
+            selectedAvatar = url;
+        };
+
+        function randomTime(min, max) { return Math.round(Math.random() * (max - min) + min); }
+
+        function tryPop() {
+            if(!gameActive) return;
+            const time = randomTime(600, 1200); 
+            let isBossWave = false;
+            if(timeLeft <= 50 && bossCount < 5 && Math.random() < 0.15) {
+                isBossWave = true;
+                bossCount++;
+            }
+            spawnWave(isBossWave, time);
+            moleLoop = setTimeout(tryPop, randomTime(500, 1000)); 
+        }
+
+        function spawnWave(isBossWave, duration) {
+            const availableHoles = Array.from(holes).filter(h => !h.classList.contains('up'));
+            if(availableHoles.length === 0) return;
+            availableHoles.sort(() => Math.random() - 0.5);
+            let spawnCount = isBossWave ? Math.min(availableHoles.length, 2 + Math.floor(Math.random() * 2)) : 1;
+            for(let i=0; i<spawnCount; i++) {
+                const hole = availableHoles[i];
+                let type = (isBossWave && i === 0) ? 'boss' : ((timeLeft <= 30 || score >= 200) && Math.random() < 0.3 ? 'trap' : 'mole');
+                showItem(hole, type, duration);
+            }
+        }
+
+        function showItem(hole, type, duration) {
+            const item = document.createElement('div');
+            if(type === 'boss') { item.classList.add('boss'); item.dataset.type = 'boss'; }
+            else if(type === 'trap') { item.classList.add('bomb'); item.innerText = Math.random() < 0.5 ? '💣' : '🧨'; item.dataset.type = 'trap'; }
+            else { item.classList.add('mole'); const img = groundhogImages[Math.floor(Math.random() * groundhogImages.length)]; item.style.backgroundImage = `url('${img}')`; item.dataset.type = 'mole'; }
+            hole.innerHTML = ''; hole.appendChild(item); hole.classList.add('up');
+            setTimeout(() => {
+                if(hole.contains(item)) { hole.classList.remove('up'); setTimeout(() => hole.innerHTML = '', 200); }
+            }, duration);
+        }
+
+        window.hit = (hole) => {
+            if(!gameActive || !hole.classList.contains('up')) return;
+            const item = hole.querySelector('.mole, .bomb, .boss');
+            if(!item) return;
+            const type = item.dataset.type;
+            if(type === 'trap') {
+                playBombSound(); timeLeft = Math.max(0, timeLeft - 3); updateTimer();
+                hole.style.backgroundColor = 'red'; setTimeout(()=> hole.style.backgroundColor = '#3e2723', 200);
+            } else if (type === 'boss') {
+                playHitSound(); score += 30; document.getElementById('liveScore').innerText = `分數: ${score}`; item.style.opacity = '0.5';
+            } else {
+                playHitSound(); score += 10; document.getElementById('liveScore').innerText = `分數: ${score}`; item.style.backgroundImage = 'none'; item.innerText = '💥';
+            }
+            hole.classList.remove('up'); setTimeout(() => hole.innerHTML = '', 200);
+        };
+
+        function updateTimer() {
+            document.getElementById('liveTimer').innerText = `${timeLeft}s`;
+            if(timeLeft <= 30) document.getElementById('liveTimer').classList.add('text-red-500');
+        }
+
+        window.bootGame = () => {
+            userId = document.getElementById('userId').value;
+            playerName = document.getElementById('pName').value;
+            if(!userId || !playerName) return alert("請填寫工號與暱稱");
+            localStorage.setItem('meiloon_userid', userId);
+            localStorage.setItem('meiloon_pname', playerName);
+            window.gameStartTime = new Date();
+            if (window.gameStartTime > new Date(window.gameDeadline)) alert("提醒：活動時間已截止，本次遊玩分數將不納入排行榜。");
+            document.getElementById('login-menu').style.display = 'none';
+            score = 0; timeLeft = 60; bossCount = 0; updateUI();
+            const overlay = document.getElementById('countdown-overlay');
+            const numEl = document.getElementById('countdown-number');
+            overlay.classList.remove('hidden');
+            let count = 3; numEl.innerText = count;
+            const timer = setInterval(() => {
+                count--;
+                if(count > 0) numEl.innerText = count;
+                else if(count === 0) numEl.innerText = "GO!";
+                else { clearInterval(timer); overlay.classList.add('hidden'); gameActive = true; tryPop();
+                    gameTimer = setInterval(() => { timeLeft--; updateTimer(); if(timeLeft <= 0) { clearInterval(gameTimer); clearTimeout(moleLoop); gameActive = false; endGame(); } }, 1000);
+                }
+            }, 1000);
+        }
+
+        function updateUI() { document.getElementById('liveScore').innerText = `分數: ${score}`; document.getElementById('liveTimer').innerText = `${timeLeft}s`; }
+
+        async function endGame() {
+            gameActive = false; document.getElementById('res-avatar').src = selectedAvatar; document.getElementById('res-name').innerText = playerName; document.getElementById('res-uid').innerText = "ID: " + userId; document.getElementById('res-score').innerText = score; document.getElementById('res-time').innerText = "DATE: " + new Date().toLocaleString(); document.getElementById('result-screen').classList.remove('hidden');
+            if (window.uploadScore) await window.uploadScore(userId, playerName, selectedAvatar, score);
+        }
+
+        window.generateAndShowImage = () => {
+            const target = document.querySelector("#screenshot-area"); target.style.transform = "scale(1)"; 
+            html2canvas(target, { useCORS: true, backgroundColor: null, scale: 2 }).then(c => {
+                const imgData = c.toDataURL("image/png"); document.getElementById('screenshot-area').classList.add('hidden'); document.getElementById('result-buttons').classList.add('hidden'); const imgEl = document.getElementById('generated-image'); imgEl.src = imgData; document.getElementById('final-image-container').classList.remove('hidden');
+            });
+        };
+    </script>
+</body>
+</html>
