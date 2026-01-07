@@ -6,6 +6,7 @@
     <title>2026 Meiloon 大胃王挑戰</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -54,21 +55,38 @@
                 }
             });
             if (isAdminMode) {
-                const pass = prompt("請輸入管理員密碼：");
-                if (pass === ADMIN_PASSWORD) {
-                    document.getElementById('login-menu').style.display = 'none';
-                    document.getElementById('admin-board').classList.remove('hidden');
-                    startLeaderboardStream();
-                } else {
-                    alert("密碼錯誤！");
-                    window.location.href = window.location.pathname;
-                }
+                document.getElementById('login-menu').style.display = 'none';
+                document.getElementById('admin-login-modal').classList.remove('hidden');
             }
         };
 
         const ADMIN_PASSWORD = "8888"; 
         const urlParams = new URLSearchParams(window.location.search);
         const isAdminMode = urlParams.get('admin') === 'true';
+        
+        // QR Code Logic
+        const GAME_URL = "https://tailgame.netlify.app";
+        
+        window.resizeQR = (scale) => {
+            const container = document.getElementById('qr-container');
+            container.style.transform = `scale(${scale})`;
+        };
+
+        window.checkAdminLogin = () => {
+            const input = document.getElementById('admin-pass-input');
+            if (input.value === ADMIN_PASSWORD) {
+                document.getElementById('admin-login-modal').classList.add('hidden');
+                document.getElementById('admin-board').classList.remove('hidden');
+                startLeaderboardStream();
+                
+                // Generate QRs
+                new QRCode(document.getElementById("qrcode-full"), { text: GAME_URL, width: 400, height: 400 });
+                new QRCode(document.getElementById("qrcode-small"), { text: GAME_URL, width: 64, height: 64 });
+            } else {
+                alert("密碼錯誤！");
+                input.value = "";
+            }
+        };
 
         function updateDeadlineDisplay() {
             const display = document.getElementById('current-deadline-text');
@@ -225,6 +243,38 @@
         </div>
     </div>
 
+    <!-- Admin Login Modal -->
+    <div id="admin-login-modal" class="overlay text-white hidden">
+        <div class="bg-gray-900 p-8 rounded-2xl border border-gray-600 shadow-2xl text-center">
+            <h2 class="text-xl font-bold mb-4 text-purple-500">管理員登入</h2>
+            <input type="password" id="admin-pass-input" placeholder="請輸入密碼" class="text-black p-2 rounded w-full mb-4 text-center">
+            <button onclick="checkAdminLogin()" class="bg-purple-600 px-6 py-2 rounded-full font-bold w-full">登入</button>
+        </div>
+    </div>
+
+    <!-- Fullscreen QR Overlay -->
+    <div id="fullscreen-qr-overlay" class="overlay text-white hidden flex flex-col items-center justify-center" onclick="if(event.target === this) this.classList.add('hidden')" style="z-index: 9999;">
+        <!-- Center QR Code -->
+        <div class="bg-white p-6 rounded-2xl shadow-2xl transition-transform duration-100" id="qr-container">
+            <div id="qrcode-full"></div>
+        </div>
+        
+        <!-- Bottom Right Slider -->
+        <div class="fixed bottom-10 right-10 w-64 bg-black/60 p-4 rounded-xl flex flex-col items-center space-y-2 backdrop-blur-md border border-white/10" onclick="event.stopPropagation()">
+            <label class="text-sm font-bold text-purple-400">🔍 調整大小</label>
+            <input type="range" min="0.5" max="3.0" step="0.1" value="1" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500" oninput="resizeQR(this.value)">
+        </div>
+
+        <!-- Bottom Left Text -->
+        <div class="fixed bottom-10 left-10 text-left pointer-events-none">
+            <p class="text-4xl font-black text-purple-400 drop-shadow-lg mb-2">掃描加入遊戲</p>
+            <p class="text-lg text-gray-300">(點擊空白處關閉)</p>
+        </div>
+    </div>
+        <p class="mt-4 text-xl font-bold">掃描加入遊戲</p>
+        <p class="text-sm text-gray-400 mt-2">(點擊任意處關閉)</p>
+    </div>
+
     <div id="admin-board" class="overlay text-white hidden">
         <button onclick="toggleAdminSettings()" class="admin-btn text-2xl">⚙️</button>
         <div class="overlay-content pt-20">
@@ -237,15 +287,21 @@
                         <button onclick="changeDeadline()" class="bg-blue-600 px-3 py-2 rounded text-sm font-bold">同步</button>
                     </div>
                 </div>
-                <div class="pt-4 border-t border-gray-700">
+                <div class="pt-4 border-t border-gray-700 space-y-2">
+                    <button onclick="document.getElementById('fullscreen-qr-overlay').classList.remove('hidden')" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
+                        <span>📱 顯示活動 QR Code</span>
+                    </button>
                     <button onclick="clearAllScores()" class="bg-red-600 hover:bg-red-700 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
                         <span>⚠ 清空大胃王排行榜數據</span>
                     </button>
                 </div>
             </div>
-            <div class="text-center mb-6">
+            <div class="text-center mb-6 relative">
                 <img src="assets/logo-n.svg" alt="Meiloon Logo" class="h-16 mx-auto mb-4 drop-shadow-lg">
-                <h1 class="text-4xl font-black text-purple-500 italic drop-shadow-lg">大胃王 排行榜</h1>
+                <div class="flex items-center justify-center space-x-4">
+                    <h1 class="text-4xl font-black text-purple-500 italic drop-shadow-lg">大胃王 排行榜</h1>
+                    <div id="qrcode-small" class="bg-white p-1 cursor-pointer" onclick="document.getElementById('fullscreen-qr-overlay').classList.remove('hidden')"></div>
+                </div>
             </div>
             <p class="mb-6 text-sm bg-black/50 px-3 py-1 rounded-full border border-purple-500/30">截止時間：<span id="current-deadline-text" class="text-purple-400 font-bold">--</span></p>
             <div id="admin-list" class="w-full max-w-2xl space-y-3 pb-20"></div>
