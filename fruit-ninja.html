@@ -49,7 +49,7 @@
 
             initAvatars();
 
-            onSnapshot(doc(db, "config", "gameSettings"), (docSnap) => {
+            onSnapshot(doc(db, "config", "fruitSettings"), (docSnap) => {
                 if(docSnap.exists()) {
                     const data = docSnap.data();
                     if(data.gameDeadline) {
@@ -354,8 +354,8 @@
                 this.type = fruitTypes[Math.floor(Math.random() * fruitTypes.length)];
                 this.vx = (Math.random() - 0.5) * 6;
                 // --- 【微調區：速度設定】 ---
-                this.vy = -(Math.random() * 5 + 18); // 上升速度：數字越大噴越高 (預設 18-23)
-                this.gravity = 0.18;                 // 掉落速度：數字越大掉越快 (預設 0.18)
+                this.vy = -(Math.random() * 5 + 10); // 上升速度：數字越大噴越高 (預設 18-23)
+                this.gravity = 0.08;                 // 掉落速度：數字越大掉越快 (預設 0.18)
                 // ---------------------------
                 this.radius = 35; this.sliced = false; this.isBomb = false;
             }
