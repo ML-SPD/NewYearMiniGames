@@ -82,6 +82,7 @@
                 // Generate QRs
                 new QRCode(document.getElementById("qrcode-full"), { text: GAME_URL, width: 400, height: 400 });
                 new QRCode(document.getElementById("qrcode-small"), { text: GAME_URL, width: 64, height: 64 });
+                startLeaderboardStream();
             } else {
                 alert("密碼錯誤！");
                 input.value = "";
@@ -132,15 +133,6 @@
             panel.classList.toggle('hidden');
         };
 
-        window.toggleAdminSidebar = () => {
-            const sidebar = document.getElementById('admin-sidebar');
-            if (sidebar.classList.contains('-translate-x-full')) {
-                sidebar.classList.remove('-translate-x-full');
-            } else {
-                sidebar.classList.add('-translate-x-full');
-            }
-        };
-
         function startLeaderboardStream() {
             const q = query(collection(db, "scores_whackamole"), orderBy("score", "desc"), limit(60));
             onSnapshot(q, (snapshot) => {
@@ -185,14 +177,7 @@
         #screenshot-area { background: linear-gradient(145deg, #064e3b, #065f46); padding: 30px; border-radius: 20px; text-align: center; color: white; border: 4px solid #4ade80; width: 320px; }
         input { color: black; }
         #line-warning { position: fixed; top: 0; left: 0; width: 100%; background: #fbbf24; color: #000; padding: 10px; text-align: center; z-index: 9999; font-weight: bold; }
-        
-        /* Admin Button - Circular Fix */
-        .admin-btn { position: fixed; top: 20px; right: 20px; z-index: 200; background: rgba(255, 255, 255, 0.2); width: 50px; height: 50px; border-radius: 50%; backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
-        .admin-btn:hover { background: rgba(255, 255, 255, 0.4); }
-
-        /* Sidebar Toggle Button */
-        .admin-sidebar-btn { position: fixed; top: 20px; left: 20px; z-index: 200; background: rgba(255, 255, 255, 0.2); width: 50px; height: 50px; border-radius: 50%; backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; color: white; transition: background 0.2s; }
-        .admin-sidebar-btn:hover { background: rgba(255, 255, 255, 0.4); }
+        .admin-btn { position: fixed; top: 20px; right: 20px; z-index: 200; background: rgba(255, 255, 255, 0.2); padding: 10px; border-radius: 50%; backdrop-filter: blur(5px); }
 
         /* Whack-a-Mole Styles */
         .game-board {
@@ -290,22 +275,12 @@
             <p class="text-lg text-gray-300">(點擊空白處關閉)</p>
         </div>
     </div>
+        <p class="mt-4 text-xl font-bold">掃描加入遊戲</p>
+        <p class="text-sm text-gray-400 mt-2">(點擊任意處關閉)</p>
+    </div>
 
     <div id="admin-board" class="overlay text-white hidden">
-        <!-- Settings Toggle Button -->
         <button onclick="toggleAdminSettings()" class="admin-btn text-2xl">⚙️</button>
-        <!-- Sidebar Toggle Button -->
-        <button onclick="toggleAdminSidebar()" class="admin-sidebar-btn text-2xl">☰</button>
-
-        <!-- Admin Sidebar -->
-        <div id="admin-sidebar" class="fixed top-0 left-0 h-full w-64 bg-gray-900/95 backdrop-blur-md border-r border-gray-700 shadow-2xl transform -translate-x-full transition-transform duration-300 z-[250] flex flex-col p-6 text-left">
-            <h3 class="text-xl font-bold text-white mb-8 border-b border-gray-700 pb-4">快速切換</h3>
-            <a href="fruit-ninja.html?admin=true" class="text-gray-300 hover:text-yellow-400 py-3 font-bold flex items-center space-x-3"><span class="text-2xl">🍎</span> <span>切水果</span></a>
-            <a href="whack-a-mole.html?admin=true" class="text-gray-300 hover:text-green-400 py-3 font-bold flex items-center space-x-3"><span class="text-2xl">🐹</span> <span>打地鼠</span></a>
-            <a href="eating-contest.html?admin=true" class="text-gray-300 hover:text-purple-400 py-3 font-bold flex items-center space-x-3"><span class="text-2xl">🐱</span> <span>大胃王</span></a>
-            <button onclick="toggleAdminSidebar()" class="mt-auto text-gray-500 hover:text-white py-4 border-t border-gray-700">✖ 關閉選單</button>
-        </div>
-
         <div class="overlay-content pt-20">
             <div id="admin-settings-panel" class="hidden bg-gray-900/95 p-6 rounded-2xl border border-gray-600 shadow-2xl mb-8 w-full max-w-sm relative">
                 <h3 class="text-green-500 font-bold mb-4 text-center border-b border-gray-700 pb-2">活動控制台</h3>
@@ -376,7 +351,6 @@
         </div>
     </div>
 
-    <!-- 3x3 Game Board -->
     <div class="game-board">
         <div class="hole" onclick="hit(this)"></div>
         <div class="hole" onclick="hit(this)"></div>
@@ -389,10 +363,8 @@
         <div class="hole" onclick="hit(this)"></div>
     </div>
 
-    <!-- Score Legend -->
     <div class="mt-10 w-full max-w-md mx-auto px-4 py-4 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 text-white pointer-events-none">
         <div class="grid grid-cols-3 gap-2 text-center items-end">
-            <!-- Normal Moles -->
             <div class="space-y-2">
                 <div class="flex justify-center -space-x-4">
                     <img src="assets/groundhog1.png" class="w-8 h-8 drop-shadow-md">
@@ -401,18 +373,14 @@
                 </div>
                 <p class="text-xs font-bold text-green-400">+10分</p>
             </div>
-            <!-- Boss Mole -->
             <div class="space-y-2 border-x border-white/10">
                 <div class="flex justify-center">
                     <img src="assets/groundhogBoss.png" class="w-10 h-10 drop-shadow-md">
                 </div>
                 <p class="text-xs font-bold text-yellow-400">+30分</p>
             </div>
-            <!-- Traps -->
             <div class="space-y-2">
-                <div class="flex justify-center space-x-1 text-2xl">
-                    <span>💣</span><span>🧨</span>
-                </div>
+                <div class="flex justify-center space-x-1 text-2xl"><span>💣</span><span>🧨</span></div>
                 <p class="text-xs font-bold text-red-400">-3秒</p>
             </div>
         </div>
@@ -430,7 +398,6 @@
         const holes = document.querySelectorAll('.hole');
         const groundhogImages = ['assets/groundhog1.png', 'assets/groundhog2.png', 'assets/groundhog3.png'];
         
-        // Audio
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         function playHitSound() {
             if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -476,71 +443,53 @@
 
         function tryPop() {
             if(!gameActive) return;
-
-            // --- 【微調區：地鼠速度】 ---
-            // randomTime(最小毫秒, 最大毫秒)：控制地鼠在洞口停留多久
-            // 數字越小，地鼠縮回去的速度就越快 (1000 = 1秒)
-            const time = randomTime(500, 1000); 
-            // ---------------------------
-
-            const hole = randomHole(holes);
-            
-            // Clean previous
-            hole.innerHTML = '';
-            hole.classList.remove('up');
-            
-            // Determine Type: 30s left OR Score >= 200 -> 30% Trap chance
-            let isTrap = false;
-            let trapType = 'bomb'; // default
-
-            if((timeLeft <= 30 || score >= 200) && Math.random() < 0.3) {
-                isTrap = true;
-                // 50% chance for Bomb or Firecracker
-                trapType = Math.random() < 0.5 ? 'bomb' : 'firecracker';
+            const time = randomTime(600, 1200); 
+            let isBossWave = false;
+            if(timeLeft <= 50 && bossCount < 5 && Math.random() < 0.15) {
+                isBossWave = true;
+                bossCount++;
             }
+            spawnWave(isBossWave, time);
+            moleLoop = setTimeout(tryPop, randomTime(500, 1000)); 
+        }
 
+        function spawnWave(isBossWave, duration) {
+            const availableHoles = Array.from(holes).filter(h => !h.classList.contains('up'));
+            if(availableHoles.length === 0) return;
+            availableHoles.sort(() => Math.random() - 0.5);
+            let spawnCount = isBossWave ? Math.min(availableHoles.length, 2 + Math.floor(Math.random() * 2)) : 1;
+            for(let i=0; i<spawnCount; i++) {
+                const hole = availableHoles[i];
+                let type = (isBossWave && i === 0) ? 'boss' : ((timeLeft <= 30 || score >= 200) && Math.random() < 0.3 ? 'trap' : 'mole');
+                showItem(hole, type, duration);
+            }
+        }
+
+        function showItem(hole, type, duration) {
             const item = document.createElement('div');
-            if(isTrap) {
-                item.classList.add('bomb'); // Reuse bomb styling for both traps
-                item.innerText = trapType === 'bomb' ? '💣' : '🧨';
-                item.dataset.type = 'trap'; // Generic trap type
-            } else {
-                item.classList.add('mole');
-                item.innerText = '🐹';
-                item.dataset.type = 'mole';
-            }
-            
-            hole.appendChild(item);
-            hole.classList.add('up');
-
+            if(type === 'boss') { item.classList.add('boss'); item.dataset.type = 'boss'; }
+            else if(type === 'trap') { item.classList.add('bomb'); item.innerText = Math.random() < 0.5 ? '💣' : '🧨'; item.dataset.type = 'trap'; }
+            else { item.classList.add('mole'); const img = groundhogImages[Math.floor(Math.random() * groundhogImages.length)]; item.style.backgroundImage = `url('${img}')`; item.dataset.type = 'mole'; }
+            hole.innerHTML = ''; hole.appendChild(item); hole.classList.add('up');
             setTimeout(() => {
-                hole.classList.remove('up');
-                if (gameActive) pop();
-            }, time);
+                if(hole.contains(item)) { hole.classList.remove('up'); setTimeout(() => hole.innerHTML = '', 200); }
+            }, duration);
         }
 
         window.hit = (hole) => {
             if(!gameActive || !hole.classList.contains('up')) return;
-            
-            const item = hole.querySelector('.mole, .bomb');
+            const item = hole.querySelector('.mole, .bomb, .boss');
             if(!item) return;
-
-            if(item.dataset.type === 'trap') {
-                playBombSound();
-                timeLeft = Math.max(0, timeLeft - 3);
-                updateTimer();
-                // Visual Feedback
-                hole.style.backgroundColor = 'red';
-                setTimeout(()=> hole.style.backgroundColor = '#3e2723', 200);
+            const type = item.dataset.type;
+            if(type === 'trap') {
+                playBombSound(); timeLeft = Math.max(0, timeLeft - 3); updateTimer();
+                hole.style.backgroundColor = 'red'; setTimeout(()=> hole.style.backgroundColor = '#3e2723', 200);
+            } else if (type === 'boss') {
+                playHitSound(); score += 30; document.getElementById('liveScore').innerText = `分數: ${score}`; item.style.opacity = '0.5';
             } else {
-                playHitSound();
-                score += 10;
-                document.getElementById('liveScore').innerText = `分數: ${score}`;
-                // Visual Feedback
-                item.innerText = '💥';
+                playHitSound(); score += 10; document.getElementById('liveScore').innerText = `分數: ${score}`; item.style.backgroundImage = 'none'; item.innerText = '💥';
             }
-            
-            hole.classList.remove('up');
+            hole.classList.remove('up'); setTimeout(() => hole.innerHTML = '', 200);
         };
 
         function updateTimer() {
@@ -554,56 +503,35 @@
             if(!userId || !playerName) return alert("請填寫工號與暱稱");
             localStorage.setItem('meiloon_userid', userId);
             localStorage.setItem('meiloon_pname', playerName);
-
             window.gameStartTime = new Date();
-            if (window.gameStartTime > new Date(window.gameDeadline)) {
-                alert("提醒：活動時間已截止，本次遊玩分數將不納入排行榜。");
-            }
-
+            if (window.gameStartTime > new Date(window.gameDeadline)) alert("提醒：活動時間已截止，本次遊玩分數將不納入排行榜。");
             document.getElementById('login-menu').style.display = 'none';
-            
-            score = 0;
-            timeLeft = 60;
-            gameActive = true;
-            
-            document.getElementById('liveScore').innerText = `分數: ${score}`;
-            updateTimer();
-            
-            // Start Loop
-            pop();
-            
-            gameTimer = setInterval(() => {
-                timeLeft--;
-                updateTimer();
-                if(timeLeft <= 0) {
-                    clearInterval(gameTimer);
-                    gameActive = false;
-                    endGame();
+            score = 0; timeLeft = 60; bossCount = 0; updateUI();
+            const overlay = document.getElementById('countdown-overlay');
+            const numEl = document.getElementById('countdown-number');
+            overlay.classList.remove('hidden');
+            let count = 3; numEl.innerText = count;
+            const timer = setInterval(() => {
+                count--;
+                if(count > 0) numEl.innerText = count;
+                else if(count === 0) numEl.innerText = "GO!";
+                else { clearInterval(timer); overlay.classList.add('hidden'); gameActive = true; tryPop();
+                    gameTimer = setInterval(() => { timeLeft--; updateTimer(); if(timeLeft <= 0) { clearInterval(gameTimer); clearTimeout(moleLoop); gameActive = false; endGame(); } }, 1000);
                 }
             }, 1000);
         }
 
+        function updateUI() { document.getElementById('liveScore').innerText = `分數: ${score}`; document.getElementById('liveTimer').innerText = `${timeLeft}s`; }
+
         async function endGame() {
-            gameActive = false;
-            document.getElementById('res-avatar').src = selectedAvatar;
-            document.getElementById('res-name').innerText = playerName;
-            document.getElementById('res-uid').innerText = "ID: " + userId;
-            document.getElementById('res-score').innerText = score;
-            document.getElementById('res-time').innerText = "DATE: " + new Date().toLocaleString();
-            document.getElementById('result-screen').classList.remove('hidden');
+            gameActive = false; document.getElementById('res-avatar').src = selectedAvatar; document.getElementById('res-name').innerText = playerName; document.getElementById('res-uid').innerText = "ID: " + userId; document.getElementById('res-score').innerText = score; document.getElementById('res-time').innerText = "DATE: " + new Date().toLocaleString(); document.getElementById('result-screen').classList.remove('hidden');
             if (window.uploadScore) await window.uploadScore(userId, playerName, selectedAvatar, score);
         }
 
         window.generateAndShowImage = () => {
-            const target = document.querySelector("#screenshot-area");
-            target.style.transform = "scale(1)"; 
+            const target = document.querySelector("#screenshot-area"); target.style.transform = "scale(1)"; 
             html2canvas(target, { useCORS: true, backgroundColor: null, scale: 2 }).then(c => {
-                const imgData = c.toDataURL("image/png");
-                document.getElementById('screenshot-area').classList.add('hidden');
-                document.getElementById('result-buttons').classList.add('hidden');
-                const imgEl = document.getElementById('generated-image');
-                imgEl.src = imgData;
-                document.getElementById('final-image-container').classList.remove('hidden');
+                const imgData = c.toDataURL("image/png"); document.getElementById('screenshot-area').classList.add('hidden'); document.getElementById('result-buttons').classList.add('hidden'); const imgEl = document.getElementById('generated-image'); imgEl.src = imgData; document.getElementById('final-image-container').classList.remove('hidden');
             });
         };
     </script>
