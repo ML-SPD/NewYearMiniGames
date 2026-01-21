@@ -132,6 +132,15 @@
             const panel = document.getElementById('admin-settings-panel');
             panel.classList.toggle('hidden');
         };
+        
+        window.toggleAdminSidebar = () => {
+            const sidebar = document.getElementById('admin-sidebar');
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+            }
+        };
 
         function startLeaderboardStream() {
             const q = query(collection(db, "scores_whackamole"), orderBy("score", "desc"), limit(60));
@@ -280,7 +289,21 @@
     </div>
 
     <div id="admin-board" class="overlay text-white hidden">
+        <!-- Settings Toggle Button -->
         <button onclick="toggleAdminSettings()" class="admin-btn text-2xl">⚙️</button>
+        <!-- Sidebar Toggle Button -->
+        <button onclick="toggleAdminSidebar()" class="admin-sidebar-btn text-2xl">☰</button>
+
+        <!-- Admin Sidebar -->
+        <div id="admin-sidebar" class="fixed top-0 left-0 h-full w-64 bg-gray-900/95 backdrop-blur-md border-r border-gray-700 shadow-2xl transform -translate-x-full transition-transform duration-300 z-[250] flex flex-col p-6 text-left">
+            <h3 class="text-xl font-bold text-white mb-8 border-b border-gray-700 pb-4">快速切換</h3>
+            <a href="fruit-ninja.html?admin=true" class="text-gray-300 hover:text-yellow-400 py-3 font-bold flex items-center space-x-3"><span class="text-2xl">🍎</span> <span>切水果</span></a>
+            <a href="whack-a-mole.html?admin=true" class="text-gray-300 hover:text-green-400 py-3 font-bold flex items-center space-x-3"><span class="text-2xl">🐹</span> <span>打地鼠</span></a>
+            <a href="eating-contest.html?admin=true" class="text-gray-300 hover:text-purple-400 py-3 font-bold flex items-center space-x-3"><span class="text-2xl">🐱</span> <span>大胃王</span></a>
+            <button onclick="toggleAdminSidebar()" class="mt-auto text-gray-500 hover:text-white py-4 border-t border-gray-700">✖ 關閉選單</button>
+        </div>
+        
+        
         <div class="overlay-content pt-20">
             <div id="admin-settings-panel" class="hidden bg-gray-900/95 p-6 rounded-2xl border border-gray-600 shadow-2xl mb-8 w-full max-w-sm relative">
                 <h3 class="text-green-500 font-bold mb-4 text-center border-b border-gray-700 pb-2">活動控制台</h3>
