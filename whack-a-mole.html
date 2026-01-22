@@ -35,6 +35,7 @@
         window.setDoc = setDoc;
 
         window.gameDeadline = "2026-02-06T19:30"; 
+        window.gameDuration = 60;
 
         window.onload = () => {
             if (navigator.userAgent.includes("Line")) {
@@ -52,6 +53,7 @@
                         window.gameDeadline = data.gameDeadline;
                         updateDeadlineDisplay();
                     }
+                    if(data.gameDuration) window.gameDuration = data.gameDuration;
                 }
             });
             if (isAdminMode) {
@@ -102,6 +104,15 @@
                     alert("雲端截止時間已同步為: " + newTime);
                 } catch(e) { alert("同步失敗: " + e); }
             }
+        };
+
+        window.updateTimeConfig = async () => {
+            const val = parseInt(document.getElementById('time-input').value);
+            if(val < 10 || val > 300) return alert("請輸入 10 到 300 之間的數字");
+            try {
+                await setDoc(doc(db, "config", "moleSettings"), { gameDuration: val }, { merge: true });
+                alert("遊戲時間已更新為: " + val + " 秒");
+            } catch(e) { alert("設定失敗: " + e); }
         };
 
         window.uploadScore = async (uid, name, avatarUrl, score) => {
@@ -186,7 +197,13 @@
         #screenshot-area { background: linear-gradient(145deg, #064e3b, #065f46); padding: 30px; border-radius: 20px; text-align: center; color: white; border: 4px solid #4ade80; width: 320px; }
         input { color: black; }
         #line-warning { position: fixed; top: 0; left: 0; width: 100%; background: #fbbf24; color: #000; padding: 10px; text-align: center; z-index: 9999; font-weight: bold; }
-        .admin-btn { position: fixed; top: 20px; right: 20px; z-index: 200; background: rgba(255, 255, 255, 0.2); padding: 10px; border-radius: 50%; backdrop-filter: blur(5px); }
+        /* Admin Button - Circular Fix */
+        .admin-btn { position: fixed; top: 20px; right: 20px; z-index: 200; background: rgba(255, 255, 255, 0.2); width: 50px; height: 50px; border-radius: 50%; backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+        .admin-btn:hover { background: rgba(255, 255, 255, 0.4); }
+
+        /* Sidebar Toggle Button */
+        .admin-sidebar-btn { position: fixed; top: 20px; left: 20px; z-index: 200; background: rgba(255, 255, 255, 0.2); width: 50px; height: 50px; border-radius: 50%; backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; color: white; transition: background 0.2s; }
+        .admin-sidebar-btn:hover { background: rgba(255, 255, 255, 0.4); }
 
         /* Whack-a-Mole Styles */
         .game-board {
@@ -239,7 +256,10 @@
     <div id="login-menu" class="overlay text-white">
         <div class="overlay-content">
             <img src="assets/logo-n.svg" alt="Meiloon Logo" class="h-16 mb-6 drop-shadow-lg">
-            <h1 class="text-xl font-black text-green-400 mb-6 italic text-center leading-tight">2026 Meiloon - 地鼠大亂鬥</h1>
+            <div class="flex items-center justify-center space-x-2 mb-6">
+                <h1 class="text-xl font-black text-green-400 italic leading-tight">2026 Meiloon - 地鼠大亂鬥</h1>
+                <button onclick="document.getElementById('help-modal').classList.remove('hidden')" class="bg-gray-700 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold border border-gray-500 hover:bg-gray-600">?</button>
+            </div>
             <div class="w-full max-w-sm space-y-4 text-black">
                 <div class="flex space-x-2">
                     <input type="text" id="userId" placeholder="工號" class="flex-1 p-3 rounded-lg text-center font-bold text-sm min-w-0">
@@ -252,6 +272,23 @@
             <div class="mt-12 text-center text-gray-500 text-xs space-y-1">
                 <p>© 2026 Meiloon All rights reserved.</p>
                 <p>Developed by MarsLin</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="overlay text-white hidden flex items-center justify-center" style="z-index: 9999;" onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-gray-900 p-6 rounded-2xl border border-gray-600 shadow-2xl max-w-2xl w-full min-h-[75vh] relative m-4">        
+            <button onclick="document.getElementById('help-modal').classList.add('hidden')" class="absolute top-3 right-3 text-gray-400 hover:text-white font-bold text-xl">✕</button>
+            <h2 class="text-2xl md:text-4xl lg:text-5xl font-black mb-6 text-green-500 text-center tracking-widest">🔨 遊戲說明 🔨</h2>
+			<div class="space-y-6 text-base md:text-xl lg:text-3xl text-gray-200 text-left leading-relaxed">
+                <p>🐹 <span class="text-white font-bold">操作規則：</span>點擊冒出的地鼠得分，點到<span class="text-yellow-400 font-bold">地鼠大魔王</span>分數更高喔！</p>
+                <p>💣 <span class="text-white font-bold">注意：</span>誤點炸彈將會扣除剩餘時間，請小心操作。</p>
+                <p>⌛ <span class="text-white font-bold">結束條件：</span>當<span class="text-yellow-500 font-bold">倒數時間歸零</span>時，遊戲即刻結束。</p>
+                <div class="border-t border-gray-700 pt-5 text-gray-400">
+                    <p class="mb-3">● 在主持人結束活動前，可重複挑戰爭奪最高分。</p>
+                    <p>● 結束後請點擊<span class="text-green-500 font-bold">「產生成績單」</span>並<span class="text-white font-bold">長按圖片儲存</span>作為領獎憑證。</p>
+                </div>
             </div>
         </div>
     </div>
@@ -284,9 +321,6 @@
             <p class="text-lg text-gray-300">(點擊空白處關閉)</p>
         </div>
     </div>
-        <p class="mt-4 text-xl font-bold">掃描加入遊戲</p>
-        <p class="text-sm text-gray-400 mt-2">(點擊任意處關閉)</p>
-    </div>
 
     <div id="admin-board" class="overlay text-white hidden">
         <!-- Settings Toggle Button -->
@@ -314,7 +348,17 @@
                         <button onclick="changeDeadline()" class="bg-blue-600 px-3 py-2 rounded text-sm font-bold">同步</button>
                     </div>
                 </div>
+                <div class="mb-4">
+                    <label class="block text-gray-400 text-xs mb-1">遊戲時間 (秒)</label>
+                    <div class="flex space-x-2">
+                        <input type="number" id="time-input" min="10" max="300" placeholder="60" class="text-black p-2 rounded w-20 text-center font-bold">
+                        <button onclick="updateTimeConfig()" class="bg-yellow-600 px-3 py-2 rounded text-sm font-bold flex-1">同步遊戲時間</button>
+                    </div>
+                </div>
                 <div class="pt-4 border-t border-gray-700 space-y-2">
+                    <button onclick="document.getElementById('help-modal').classList.remove('hidden')" class="bg-gray-600 hover:bg-gray-500 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
+                        <span>📖 顯示遊戲說明</span>
+                    </button>
                     <button onclick="document.getElementById('fullscreen-qr-overlay').classList.remove('hidden')" class="bg-blue-600 hover:bg-blue-700 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
                         <span>📱 顯示活動 QR Code</span>
                     </button>
@@ -529,7 +573,8 @@
             window.gameStartTime = new Date();
             if (window.gameStartTime > new Date(window.gameDeadline)) alert("提醒：活動時間已截止，本次遊玩分數將不納入排行榜。");
             document.getElementById('login-menu').style.display = 'none';
-            score = 0; timeLeft = 60; bossCount = 0; updateUI();
+//             score = 0; timeLeft = 60; bossCount = 0; updateUI();
+            score = 0; timeLeft = (window.gameDuration !== undefined) ? window.gameDuration : 60; bossCount = 0; updateUI();
             const overlay = document.getElementById('countdown-overlay');
             const numEl = document.getElementById('countdown-number');
             overlay.classList.remove('hidden');

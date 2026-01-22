@@ -37,6 +37,7 @@
         // --- 全域變數 ---
         window.gameDeadline = "2026-02-06T19:30"; // 預設值
         window.maxLives = 3;
+        window.gameDuration = 60;
 
         window.onload = () => {
             if (navigator.userAgent.includes("Line")) {
@@ -59,6 +60,7 @@
                         updateDeadlineDisplay();
                     }
                     if(data.maxLives) window.maxLives = data.maxLives;
+                    if(data.gameDuration) window.gameDuration = data.gameDuration;
                 }
             });
 
@@ -150,6 +152,15 @@
             } catch(e) { alert("設定失敗: " + e); }
         };
 
+        window.updateTimeConfig = async () => {
+            const val = parseInt(document.getElementById('time-input').value);
+            if(val < 10 || val > 300) return alert("請輸入 10 到 300 之間的數字");
+            try {
+                await setDoc(doc(db, "config", "fruitSettings"), { gameDuration: val }, { merge: true });
+                alert("遊戲時間已更新為: " + val + " 秒");
+            } catch(e) { alert("設定失敗: " + e); }
+        };
+
         // Admin Panel Toggle Logic
         window.toggleAdminSettings = () => {
             const panel = document.getElementById('admin-settings-panel');
@@ -225,7 +236,10 @@
     <div id="login-menu" class="overlay text-white">
         <div class="overlay-content">
             <img src="assets/logo-n.svg" alt="Meiloon Logo" class="h-16 mb-6 drop-shadow-lg">
-            <h1 class="text-xl font-black text-yellow-500 mb-6 italic text-center leading-tight">2026 Meiloon - 切水果大賽</h1>
+			<div class="flex items-center justify-center space-x-2 mb-6">
+				<h1 class="text-xl font-black text-yellow-400 italic leading-tight">2026 Meiloon - 切水果大賽</h1>
+				<button onclick="document.getElementById('help-modal').classList.remove('hidden')" class="bg-gray-700 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold border border-gray-500 hover:bg-gray-600">?</button>
+			</div>
             <div class="w-full max-w-sm space-y-4 text-black">
                 <div class="flex space-x-2">
                     <input type="text" id="userId" placeholder="工號" class="flex-1 p-3 rounded-lg text-center font-bold text-sm min-w-0">
@@ -238,6 +252,22 @@
             <div class="mt-12 text-center text-gray-500 text-xs space-y-1">
                 <p>© 2026 Meiloon All rights reserved.</p>
                 <p>Developed by MarsLin</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="overlay text-white hidden flex items-center justify-center" style="z-index: 9999;" onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="bg-gray-900 p-6 rounded-2xl border border-gray-600 shadow-2xl max-w-2xl w-full min-h-[75vh] relative m-4">
+            <button onclick="document.getElementById('help-modal').classList.add('hidden')" class="absolute top-3 right-3 text-gray-400 hover:text-white font-bold text-xl">✕</button>
+            <h2 class="text-2xl md:text-4xl lg:text-5xl font-black mb-6 text-yellow-500 text-center tracking-widest">🍎 遊戲說明 🍎</h2>
+            <div class="space-y-6 text-base md:text-xl lg:text-3xl text-gray-200 text-left leading-relaxed">
+                <p>🔪 <span class="text-white font-bold">玩法：</span>滑動手指切開水果得分，但千萬別碰到黑色炸彈，切到炸彈會扣生命！</p>
+                <p>⌛ <span class="text-white font-bold">結束條件：</span>當右上角<span class="text-red-500 font-bold">生命值歸零</span>或<span class="text-yellow-500 font-bold">倒數時間結束</span>，遊戲即刻截止。</p>                
+                <div class="border-t border-gray-700 pt-5 text-gray-400">
+                    <p class="mb-3">● 在主持人結束活動前，可重複挑戰爭奪最高分。</p>
+                    <p>● 結束後請點擊<span class="text-green-500 font-bold">「產生成績單」</span>並<span class="text-white font-bold">長按圖片儲存</span>作為領獎憑證。</p>
+                </div>
             </div>
         </div>
     </div>
@@ -304,7 +334,17 @@
                         <button onclick="updateLivesConfig()" class="bg-green-600 px-3 py-2 rounded text-sm font-bold flex-1">同步生命值</button>
                     </div>
                 </div>
+                <div class="mb-4">
+                    <label class="block text-gray-400 text-xs mb-1">遊戲時間 (秒)</label>
+                    <div class="flex space-x-2">
+                        <input type="number" id="time-input" min="10" max="300" placeholder="60" class="text-black p-2 rounded w-20 text-center font-bold">
+                        <button onclick="updateTimeConfig()" class="bg-yellow-600 px-3 py-2 rounded text-sm font-bold flex-1">同步遊戲時間</button>
+                    </div>
+                </div>
                 <div class="pt-4 border-t border-gray-700 space-y-2">
+                    <button onclick="document.getElementById('help-modal').classList.remove('hidden')" class="bg-gray-600 hover:bg-gray-500 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
+                        <span>📖 顯示遊戲說明</span>
+                    </button>
                     <button onclick="document.getElementById('fullscreen-qr-overlay').classList.remove('hidden')" class="bg-purple-600 hover:bg-purple-700 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
                         <span>📱 顯示活動 QR Code</span>
                     </button>
@@ -352,7 +392,7 @@
                 <p id="res-time" class="text-xs opacity-50"></p>
             </div>
             <div id="result-buttons" class="mt-6 flex flex-col items-center space-y-3">
-                <button onclick="generateAndShowImage()" class="bg-green-600 hover:bg-green-500 px-10 py-3 rounded-lg font-bold flex items-center space-x-2 shadow-lg transition transform active:scale-95"><span>📸 產生成績單 (長按儲存)</span></button>
+                <button onclick="generateAndShowImage()" class="bg-green-600 hover:bg-green-500 px-10 py-3 rounded-lg font-bold flex items-center space-x-2 shadow-lg transition transform active:scale-95"><span>📸 產生成績單</span></button>
                 <button onclick="location.reload()" class="text-gray-400 underline">回主選單</button>
             </div>
         </div>
@@ -366,6 +406,7 @@
     <div id="ui">
         <div class="p-4 text-white text-2xl font-bold flex justify-between">
             <div id="liveScore">分數: 0</div>
+            <div id="liveTime" class="text-yellow-400 font-mono">60s</div>
             <div id="liveLife" class="text-red-500">❤❤❤</div>
         </div>
     </div>
@@ -375,8 +416,9 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         let fruits = [], trail = [];
-        let score = 0, lives = 3, gameActive = false;
+        let score = 0, lives = 3, timeLeft = 60, gameActive = false;
         let playerName = "", userId = "";
+        let gameTimer; // Added timer variable
         
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         function playSliceSound() {
@@ -470,7 +512,8 @@
             }
 
             document.getElementById('login-menu').style.display = 'none';
-            lives = (window.maxLives !== undefined) ? window.maxLives : 3;
+            lives = (window.maxLives !== undefined) ? window.maxLives : 5;
+            timeLeft = (window.gameDuration !== undefined) ? window.gameDuration : 45;
             score = 0; fruits = []; 
             updateUI();
 
@@ -492,6 +535,18 @@
                     overlay.classList.add('hidden');
                     gameActive = true; 
                     loop();
+                    // Start Game Timer
+                    if(gameTimer) clearInterval(gameTimer);
+                    gameTimer = setInterval(() => {
+                        if(gameActive) {
+                            timeLeft--;
+                            updateUI();
+                            if(timeLeft <= 0) {
+                                clearInterval(gameTimer);
+                                endGame();
+                            }
+                        }
+                    }, 1000);
                 }
             }, 1000);
         }
@@ -499,6 +554,9 @@
         function updateUI() {
             document.getElementById('liveScore').innerText = `分數: ${score}`;
             document.getElementById('liveLife').innerText = "❤".repeat(Math.max(0, lives));
+            document.getElementById('liveTime').innerText = `${timeLeft}s`;
+            if(timeLeft <= 10) document.getElementById('liveTime').classList.add('text-red-500');
+            else document.getElementById('liveTime').classList.remove('text-red-500');
         }
         function handleMove(e) {
             if (!gameActive) return;
@@ -544,6 +602,7 @@
         }
         async function endGame() {
             gameActive = false;
+            if(gameTimer) clearInterval(gameTimer);
             document.getElementById('res-avatar').src = selectedAvatar;
             document.getElementById('res-name').innerText = playerName;
             document.getElementById('res-uid').innerText = "ID: " + userId;
