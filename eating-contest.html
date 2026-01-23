@@ -35,7 +35,7 @@
         window.setDoc = setDoc;
 
         window.gameDeadline = "2026-02-06T19:30"; 
-        window.gameDuration = 60;
+        window.gameDuration = 45;
 
         window.onload = () => {
             if (navigator.userAgent.includes("Line")) {
@@ -51,7 +51,7 @@
                     const data = docSnap.data();
                     if(data.gameDeadline) {
                         window.gameDeadline = data.gameDeadline;
-                        updateDeadlineDisplay();
+                        startDeadlineCountdown(window.gameDeadline);
                     }
                     if(data.gameDuration) window.gameDuration = data.gameDuration;
                 }
@@ -90,9 +90,35 @@
             }
         };
 
-        function updateDeadlineDisplay() {
-            const display = document.getElementById('current-deadline-text');
-            if(display) display.innerText = window.gameDeadline.replace("T", " ");
+        let deadlineInterval;
+        let currentTrackingDeadline = null;
+
+        function startDeadlineCountdown(deadlineStr) {
+            if (currentTrackingDeadline === deadlineStr && deadlineInterval) return;
+            currentTrackingDeadline = deadlineStr;
+
+            if(deadlineInterval) clearInterval(deadlineInterval);
+            const target = new Date(deadlineStr).getTime();
+
+            const tick = () => {
+                const now = new Date().getTime();
+                const diff = target - now;
+                const el = document.getElementById('current-deadline-text');
+                if(!el) return;
+
+                if(diff <= 0) {
+                    el.innerText = "TIME UP";
+                    el.className = "text-red-500 font-black text-2xl animate-pulse";
+                    if(deadlineInterval) clearInterval(deadlineInterval);
+                } else {
+                    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const s = Math.floor((diff % (1000 * 60)) / 1000);
+                    el.innerText = `${m}:${s.toString().padStart(2, '0')}`;
+                    el.className = "text-purple-400 font-mono text-2xl font-black";
+                }
+            };
+            tick(); 
+            deadlineInterval = setInterval(tick, 1000);
         }
 
         window.changeDeadline = async () => {
@@ -103,6 +129,26 @@
                     alert("雲端截止時間已同步為: " + newTime);
                 } catch(e) { alert("同步失敗: " + e); }
             }
+        };
+
+        window.addGameTime = async (minutes) => {
+            if(!minutes || minutes <= 0) return alert("請輸入有效的分鐘數");
+            const now = new Date();
+            const targetTime = new Date(now.getTime() + minutes * 60 * 1000);
+            
+            const year = targetTime.getFullYear();
+            const month = String(targetTime.getMonth() + 1).padStart(2, '0');
+            const day = String(targetTime.getDate()).padStart(2, '0');
+            const hours = String(targetTime.getHours()).padStart(2, '0');
+            const min = String(targetTime.getMinutes()).padStart(2, '0');
+            const sec = String(targetTime.getSeconds()).padStart(2, '0');
+            
+            const newTimeString = `${year}-${month}-${day}T${hours}:${min}:${sec}`;
+
+            try {
+                await setDoc(doc(db, "config", "eatingSettings"), { gameDeadline: newTimeString }, { merge: true });
+                document.getElementById('deadline-input').value = newTimeString;
+            } catch(e) { alert("設定失敗: " + e); }
         };
 
         window.updateTimeConfig = async () => {
@@ -140,7 +186,11 @@
 
         window.toggleAdminSettings = () => {
             const panel = document.getElementById('admin-settings-panel');
-            panel.classList.toggle('hidden');
+            if (panel.classList.contains('translate-x-full')) {
+                panel.classList.remove('translate-x-full');
+            } else {
+                panel.classList.add('translate-x-full');
+            }
         };
         
         window.toggleAdminSidebar = () => {
@@ -251,6 +301,9 @@
     <div id="line-warning" class="hidden">請點擊選單 (右下角) ➔ 選擇「在瀏覽器中開啟」以獲得最佳體驗</div>
     
     <div id="login-menu" class="overlay text-white">
+        <a href="index.html" class="absolute top-6 left-6 bg-gray-700/50 hover:bg-gray-600 p-3 rounded-full text-white transition z-50">
+            <span class="text-xl">🏠</span>
+        </a>
         <div class="overlay-content">
             <img src="assets/logo-n.svg" alt="Meiloon Logo" class="h-16 mb-6 drop-shadow-lg">
             <div class="flex items-center justify-center space-x-2 mb-6">
@@ -332,37 +385,53 @@
             <a href="eating-contest.html?admin=true" class="text-gray-300 hover:text-purple-400 py-3 font-bold flex items-center space-x-3"><span class="text-2xl">🐱</span> <span>大胃王</span></a>
             <button onclick="toggleAdminSidebar()" class="mt-auto text-gray-500 hover:text-white py-4 border-t border-gray-700">✖ 關閉選單</button>
         </div>
+
+        <!-- Admin Settings Panel (Right Slide-in) -->
+        <div id="admin-settings-panel" class="fixed top-0 right-0 h-full w-80 bg-gray-900/95 backdrop-blur-md border-l border-gray-700 shadow-2xl transform translate-x-full transition-transform duration-300 z-[250] flex flex-col p-6 overflow-y-auto">
+             <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+                <h3 class="text-purple-500 font-bold text-lg">活動控制台</h3>
+                <button onclick="toggleAdminSettings()" class="text-gray-400 hover:text-white font-bold text-xl">✕</button>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-gray-400 text-xs mb-2">活動截止時間</label>
+                <div class="flex space-x-2 mb-2">
+                    <input type="datetime-local" id="deadline-input" step="1" class="text-black p-2 rounded flex-1 text-sm">
+                    <button onclick="changeDeadline()" class="bg-blue-600 px-3 py-2 rounded text-sm font-bold">同步</button>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="addGameTime(5)" class="bg-gray-700 hover:bg-green-600 px-2 py-2 rounded text-xs font-bold transition">+5 分</button>
+                    <button onclick="addGameTime(10)" class="bg-gray-700 hover:bg-green-600 px-2 py-2 rounded text-xs font-bold transition">+10 分</button>
+                    <div class="flex space-x-1">
+                        <input type="number" id="custom-min" placeholder="分" class="w-full text-black px-1 rounded text-center font-bold text-xs">
+                        <button onclick="addGameTime(Number(document.getElementById('custom-min').value))" class="bg-blue-600 px-2 rounded text-xs font-bold">Go</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-gray-400 text-xs mb-2">遊戲時間 (秒)</label>
+                <div class="flex space-x-2">
+                    <input type="number" id="time-input" min="10" max="300" placeholder="60" class="text-black p-2 rounded w-20 text-center font-bold">
+                    <button onclick="updateTimeConfig()" class="bg-yellow-600 px-3 py-2 rounded text-sm font-bold flex-1">同步遊戲時間</button>
+                </div>
+            </div>
+
+            <div class="mt-auto space-y-3 pt-6 border-t border-gray-700">
+                <button onclick="document.getElementById('help-modal').classList.remove('hidden')" class="bg-gray-700 hover:bg-gray-600 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition border border-gray-600">
+                    <span>📖 顯示遊戲說明</span>
+                </button>
+                <button onclick="document.getElementById('fullscreen-qr-overlay').classList.remove('hidden')" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
+                    <span>📱 顯示活動 QR Code</span>
+                </button>
+                <button onclick="clearAllScores()" class="bg-red-600 hover:bg-red-700 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
+                    <span>⚠ 清空排行榜數據</span>
+                </button>
+            </div>
+        </div>
         
         
         <div class="overlay-content pt-20">
-            <div id="admin-settings-panel" class="hidden bg-gray-900/95 p-6 rounded-2xl border border-gray-600 shadow-2xl mb-8 w-full max-w-sm relative">
-                <h3 class="text-purple-500 font-bold mb-4 text-center border-b border-gray-700 pb-2">活動控制台</h3>
-                <div class="mb-4">
-                    <label class="block text-gray-400 text-xs mb-1">活動截止時間</label>
-                    <div class="flex space-x-2">
-                        <input type="datetime-local" id="deadline-input" class="text-black p-2 rounded flex-1">
-                        <button onclick="changeDeadline()" class="bg-blue-600 px-3 py-2 rounded text-sm font-bold">同步</button>
-                    </div>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-400 text-xs mb-1">遊戲時間 (秒)</label>
-                    <div class="flex space-x-2">
-                        <input type="number" id="time-input" min="10" max="300" placeholder="60" class="text-black p-2 rounded w-20 text-center font-bold">
-                        <button onclick="updateTimeConfig()" class="bg-yellow-600 px-3 py-2 rounded text-sm font-bold flex-1">同步遊戲時間</button>
-                    </div>
-                </div>
-                <div class="pt-4 border-t border-gray-700 space-y-2">
-                    <button onclick="document.getElementById('help-modal').classList.remove('hidden')" class="bg-gray-600 hover:bg-gray-500 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
-                        <span>📖 顯示遊戲說明</span>
-                    </button>
-                    <button onclick="document.getElementById('fullscreen-qr-overlay').classList.remove('hidden')" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
-                        <span>📱 顯示活動 QR Code</span>
-                    </button>
-                    <button onclick="clearAllScores()" class="bg-red-600 hover:bg-red-700 px-4 py-3 rounded-lg w-full text-sm font-bold flex justify-center items-center space-x-2 transition">
-                        <span>⚠ 清空大胃王排行榜數據</span>
-                    </button>
-                </div>
-            </div>
             <div class="text-center mb-6 relative">
                 <img src="assets/logo-n.svg" alt="Meiloon Logo" class="h-16 mx-auto mb-4 drop-shadow-lg">
                 <div class="flex items-center justify-center space-x-4">
@@ -400,7 +469,7 @@
             </div>
             <div id="result-buttons" class="mt-6 flex flex-col items-center space-y-3">
                 <button onclick="generateAndShowImage()" class="bg-green-600 hover:bg-green-500 px-10 py-3 rounded-lg font-bold flex items-center space-x-2 shadow-lg transition transform active:scale-95"><span>📸 產生成績單</span></button>
-                <button onclick="location.reload()" class="text-gray-400 underline">回主選單</button>
+<!--                 <button onclick="location.reload()" class="text-gray-400 underline">回主選單</button> -->
             </div>
         </div>
     </div>
@@ -556,6 +625,7 @@
             const index = currentData.items.indexOf(food);
             if(index !== -1) {
                 // Correct
+                if(navigator.vibrate) navigator.vibrate(30); // 吃對輕震動
                 playSound('eat');
                 score += 10;
                 currentData.items.splice(index, 1);
@@ -584,6 +654,7 @@
                 document.getElementById('liveScore').innerText = `分數: ${score}`;
             } else {
                 // Error
+                if(navigator.vibrate) navigator.vibrate(200); // 吃錯長震動
                 playSound('error');
                 timeLeft = Math.max(0, timeLeft - 1);
                 updateTimer();
