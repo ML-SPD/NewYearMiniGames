@@ -280,11 +280,16 @@
             background-image: url('assets/plate.png');
             background-size: contain; background-repeat: no-repeat; background-position: center;
             width: 160px; height: 160px;
-            display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
-            padding: 35px; 
+            position: relative;
             filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5));
         }
-        .food-item { font-size: 30px; margin: 2px; transition: transform 0.2s, opacity 0.2s; }
+        .food-item { 
+            font-size: 55px; 
+            position: absolute; 
+            transition: transform 0.2s, opacity 0.2s;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+            pointer-events: none; /* Let clicks pass through if needed, though interaction is via buttons */
+        }
         
         .control-panel { display: flex; justify-content: center; gap: 15px; margin-top: 20px; }
         .food-btn { 
@@ -498,7 +503,7 @@
         <div class="food-btn" onclick="eat('🍎')">🍎</div>
         <div class="food-btn" onclick="eat('🍌')">🍌</div>
         <div class="food-btn" onclick="eat('🍇')">🍇</div>
-        <div class="food-btn" onclick="eat('🍍')">🍍</div>
+        <div class="food-btn" onclick="eat('🍑')">🍑</div>
         <div class="food-btn" onclick="eat('🥝')">🥝</div>
     </div>
 
@@ -556,7 +561,7 @@
             selectedAvatar = url;
         };
 
-        const foodOptions = ['🍎', '🍌', '🍇', '🍍', '🥝'];
+        const foodOptions = ['🍎', '🍌', '🍇', '🍑', '🥝'];
 
         function generatePlateData() {
             let p = [];
@@ -568,7 +573,21 @@
             const div = document.createElement('div');
             div.id = `plate-${plateData.id}`;
             div.className = `plate-container ${posClass}`;
-            div.innerHTML = `<div class="plate">${plateData.items.map(f => `<div class="food-item">${f}</div>`).join('')}</div>`;
+            
+            // Pyramid Positions (Priority: BL=1, BR=2, Top=3)
+            // Moved up: top values decreased
+            const positions = [
+                { left: 25, top: 35, z: 1 }, // Bottom Left
+                { left: 45, top: 35, z: 2 }, // Bottom Right
+                { left: 35, top: 8, z: 3 }   // Top Center
+            ];
+
+            const itemsHtml = plateData.items.map((f, i) => {
+                const pos = positions[i] || { left: 35, top: 30, z: i }; 
+                return `<div class="food-item" style="left: ${pos.left}%; top: ${pos.top}%; z-index: ${pos.z};">${f}</div>`;
+            }).join('');
+
+            div.innerHTML = `<div class="plate">${itemsHtml}</div>`;
             return div;
         }
 

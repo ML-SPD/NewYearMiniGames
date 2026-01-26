@@ -338,6 +338,28 @@
                 <p>🐹 <span class="text-white font-bold">操作規則：</span>點擊冒出的地鼠得分，點到<span class="text-yellow-400 font-bold">地鼠大魔王</span>分數更高喔！</p>
                 <p>💣 <span class="text-white font-bold">注意：</span>誤點炸彈將會扣除剩餘時間，請小心操作。</p>
                 <p>⌛ <span class="text-white font-bold">結束條件：</span>當<span class="text-yellow-500 font-bold">倒數時間歸零</span>時，遊戲即刻結束。</p>
+                
+                <div class="bg-black/40 p-4 rounded-xl border border-white/20 my-6">
+                     <div class="grid grid-cols-3 gap-2 text-center items-end">
+                        <div class="flex flex-col items-center space-y-2">
+                            <div class="flex justify-center -space-x-3">
+                                <img src="assets/groundhog1.png" class="w-10 h-10 md:w-14 md:h-14">
+                                <img src="assets/groundhog2.png" class="w-10 h-10 md:w-14 md:h-14">
+                                <img src="assets/groundhog3.png" class="w-10 h-10 md:w-14 md:h-14">
+                            </div>
+                            <p class="text-base md:text-xl font-black text-green-400">+10分</p>
+                        </div>
+                        <div class="flex flex-col items-center space-y-2 border-x border-white/20">
+                            <img src="assets/groundhogBoss.png" class="w-12 h-12 md:w-16 md:h-16">
+                            <p class="text-base md:text-xl font-black text-yellow-400">+30分</p>
+                        </div>
+                        <div class="flex flex-col items-center space-y-2">
+                            <div class="text-3xl md:text-5xl">💣</div>
+                            <p class="text-base md:text-xl font-black text-red-400">-3秒</p>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="border-t border-gray-700 pt-5 text-gray-400">
                     <p class="mb-3">● 在主持人結束活動前，可重複挑戰爭奪最高分。</p>
                     <p>● 結束後請點擊<span class="text-green-500 font-bold">「產生成績單」</span>並<span class="text-white font-bold">長按圖片儲存</span>作為領獎憑證。</p>
@@ -499,25 +521,25 @@
         <div class="hole" onclick="hit(this)"></div>
     </div>
 
-    <div class="mt-10 w-full max-w-md mx-auto px-4 py-4 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 text-white pointer-events-none">
-        <div class="grid grid-cols-3 gap-2 text-center items-end">
-            <div class="space-y-2">
-                <div class="flex justify-center -space-x-4">
-                    <img src="assets/groundhog1.png" class="w-8 h-8 drop-shadow-md">
-                    <img src="assets/groundhog2.png" class="w-8 h-8 drop-shadow-md">
-                    <img src="assets/groundhog3.png" class="w-8 h-8 drop-shadow-md">
+    <div class="mt-10 w-full max-w-xl mx-auto px-4 py-6 bg-black/50 backdrop-blur-md rounded-2xl border border-white/20 text-white pointer-events-none">
+        <div class="grid grid-cols-3 gap-4 text-center items-end">
+            <div class="space-y-3">
+                <div class="flex justify-center -space-x-6">
+                    <img src="assets/groundhog1.png" class="w-14 h-14 drop-shadow-lg">
+                    <img src="assets/groundhog2.png" class="w-14 h-14 drop-shadow-lg">
+                    <img src="assets/groundhog3.png" class="w-14 h-14 drop-shadow-lg">
                 </div>
-                <p class="text-xs font-bold text-green-400">+10分</p>
+                <p class="text-xl font-black text-green-400 drop-shadow-md">+10分</p>
             </div>
-            <div class="space-y-2 border-x border-white/10">
+            <div class="space-y-3 border-x-2 border-white/10">
                 <div class="flex justify-center">
-                    <img src="assets/groundhogBoss.png" class="w-10 h-10 drop-shadow-md">
+                    <img src="assets/groundhogBoss.png" class="w-16 h-16 drop-shadow-lg">
                 </div>
-                <p class="text-xs font-bold text-yellow-400">+30分</p>
+                <p class="text-xl font-black text-yellow-400 drop-shadow-md">+30分</p>
             </div>
-            <div class="space-y-2">
-                <div class="flex justify-center space-x-1 text-2xl"><span>💣</span><span>🧨</span></div>
-                <p class="text-xs font-bold text-red-400">-3秒</p>
+            <div class="space-y-3">
+                <div class="flex justify-center space-x-2 text-5xl"><span>💣</span><span>🧨</span></div>
+                <p class="text-xl font-black text-red-400 drop-shadow-md">-3秒</p>
             </div>
         </div>
     </div>
