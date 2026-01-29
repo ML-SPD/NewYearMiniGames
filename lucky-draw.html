@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>2026 Meiloon 幸運輪盤</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Microsoft JhengHei', sans-serif; }
+        
+        .wheel-container {
+            position: relative;
+            width: 90vw;
+            max-width: 500px;
+            aspect-ratio: 1/1;
+            margin: 0 auto;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border: 8px solid #333;
+            transition: transform 0.1s;
+        }
+
+        /* Pointer */
+        .pointer {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 50px;
+            z-index: 20;
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5));
+        }
+        .pointer::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 50px solid #ef4444; /* Red Pointer */
+        }
+
+        button {
+            font-weight: bold;
+            transition: all 0.1s;
+        }
+        button:active { transform: scale(0.95); }
+
+        #action-btn {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            font-size: 32px;
+            background: linear-gradient(135deg, #22c55e, #15803d);
+            border: 6px solid #14532d;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 25;
+            cursor: pointer;
+        }
+        #action-btn.stop-mode {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            border-color: #7f1d1d;
+        }
+        #action-btn:disabled {
+            background: #555;
+            border-color: #333;
+            cursor: not-allowed;
+        }
+        
+        .confetti {
+            position: absolute;
+            width: 10px; height: 10px;
+            background-color: #f00;
+            animation: fall linear forwards;
+        }
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="min-h-screen flex flex-col md:flex-row items-center justify-center p-4 gap-8">
+        
+        <!-- Left Side: Logo + Wheel -->
+        <div class="flex flex-col items-center w-full max-w-xl">
+            <!-- Logo / Header -->
+            <div class="text-center mb-4">
+                <img src="assets/logo-n.svg" alt="Meiloon Logo" class="h-12 md:h-16 mx-auto mb-2 drop-shadow-lg">
+                <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 italic pr-2">LUCKY DRAW</h1>
+                <p class="text-gray-400 text-sm mt-1">幸運輪盤</p>
+                <br>
+            </div>
+
+            <!-- Wheel Area -->
+            <div class="wheel-container">
+                <div class="pointer"></div>
+                <canvas id="wheelCanvas" width="800" height="800"></canvas>
+                
+                <!-- Center Button -->
+                <button id="action-btn" onclick="toggleSpin()">GO!</button>
+            </div>
+        </div>
+
+        <!-- Right Side: Controls -->
+        <div class="controls bg-gray-800/50 p-6 rounded-2xl border border-gray-700 backdrop-blur-sm shadow-xl flex flex-col items-center space-y-4 w-full max-w-xs">
+            <h3 class="text-white font-bold border-b border-gray-600 pb-2 w-full text-center">設定面板</h3>
+            <div class="flex flex-col items-center w-full space-y-2">
+                <label class="text-gray-300 text-sm font-bold">總人數</label>
+                <div class="flex w-full space-x-2">
+                    <input type="number" id="memberCount" value="14" min="2" max="100" class="flex-1 text-center bg-gray-900 border border-gray-600 rounded-lg text-white font-bold p-2 focus:border-green-500 focus:outline-none">
+                    <button onclick="initWheel()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg transition active:scale-95">更新</button>
+                </div>
+            </div>
+            <div class="w-full h-px bg-gray-700 my-2"></div>
+            <div class="text-center">
+                <p class="text-gray-400 text-xs mb-1">狀態</p>
+                <p id="status-text" class="text-green-400 font-mono font-bold text-lg animate-pulse">準備就緒</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Result Modal -->
+    <div id="result-modal" class="hidden fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center">
+        <h2 class="text-gray-300 text-2xl font-bold mb-4">幸運得主是</h2>
+        <div id="winner-num" class="text-9xl font-black text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)] mb-8 scale-0 transition-transform duration-500">?</div>
+        <button onclick="closeModal()" class="bg-white text-black px-8 py-3 rounded-full font-bold text-lg hover:bg-gray-200">確定</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('wheelCanvas');
+        const ctx = canvas.getContext('2d');
+        const countInput = document.getElementById('memberCount');
+        const btn = document.getElementById('action-btn');
+        const statusText = document.getElementById('status-text');
+
+        let segments = [];
+        let totalMembers = 14;
+        let currentAngle = 0; // Degrees
+        let isSpinning = false;
+        let isStopping = false;
+        let speed = 0;
+        let animationFrameId;
+        
+        // Audio Logic
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let lastAngle = 0;
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'tick') {
+                // Short high pitch tick
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.05);
+            } else if (type === 'win') {
+                // Victory chord
+                const now = audioCtx.currentTime;
+                
+                // Note 1
+                const osc1 = audioCtx.createOscillator();
+                const g1 = audioCtx.createGain();
+                osc1.connect(g1); g1.connect(audioCtx.destination);
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(523.25, now); // C5
+                g1.gain.setValueAtTime(0.2, now);
+                g1.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+                osc1.start(); osc1.stop(now + 1.5);
+
+                // Note 2
+                const osc2 = audioCtx.createOscillator();
+                const g2 = audioCtx.createGain();
+                osc2.connect(g2); g2.connect(audioCtx.destination);
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(659.25, now + 0.1); // E5
+                g2.gain.setValueAtTime(0.2, now + 0.1);
+                g2.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+                osc2.start(now + 0.1); osc2.stop(now + 1.6);
+                
+                // Note 3
+                const osc3 = audioCtx.createOscillator();
+                const g3 = audioCtx.createGain();
+                osc3.connect(g3); g3.connect(audioCtx.destination);
+                osc3.type = 'square';
+                osc3.frequency.setValueAtTime(783.99, now + 0.2); // G5
+                g3.gain.setValueAtTime(0.1, now + 0.2);
+                g3.gain.exponentialRampToValueAtTime(0.001, now + 2);
+                osc3.start(now + 0.2); osc3.stop(now + 2);
+            }
+        }
+
+        // Palette
+        const colors = [
+            '#ef4444', '#f97316', '#f59e0b', '#84cc16', 
+            '#10b981', '#06b6d4', '#3b82f6', '#6366f1', 
+            '#8b5cf6', '#d946ef', '#f43f5e', '#64748b'
+        ];
+
+        function initWheel() {
+            const val = parseInt(countInput.value);
+            if(val < 2 || val > 100) return alert("請輸入 2 到 100 之間的人數");
+            
+            totalMembers = val;
+            segments = [];
+            for(let i=1; i<=totalMembers; i++) {
+                segments.push({
+                    text: i.toString(),
+                    color: colors[(i-1) % colors.length]
+                });
+            }
+            drawWheel();
+            statusText.innerText = `已設定 ${totalMembers} 位成員`;
+        }
+
+        function drawWheel() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = canvas.width / 2 - 20; // Padding
+            const sliceAngle = (2 * Math.PI) / segments.length;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Save context for rotation
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate((currentAngle * Math.PI) / 180);
+
+            segments.forEach((seg, i) => {
+                const startAngle = i * sliceAngle - (Math.PI / 2); // Start from top (-90deg)
+                const endAngle = startAngle + sliceAngle;
+
+                // Draw Slice
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, radius, startAngle, endAngle);
+                ctx.fillStyle = seg.color;
+                ctx.fill();
+                ctx.strokeStyle = "#1a1a1a";
+                ctx.lineWidth = 4;
+                ctx.stroke();
+
+                // Draw Text
+                ctx.save();
+                ctx.rotate(startAngle + sliceAngle / 2);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 40px Arial";
+                // Determine text size based on segment count
+                if(segments.length > 20) ctx.font = "bold 24px Arial";
+                if(segments.length > 50) ctx.font = "bold 16px Arial";
+                
+                ctx.fillText(seg.text, radius - 30, 10);
+                ctx.restore();
+            });
+
+            // Center White Circle
+            ctx.beginPath();
+            ctx.arc(0, 0, 80, 0, 2 * Math.PI);
+            ctx.fillStyle = "#1a1a1a"; // Match background
+            ctx.fill();
+            ctx.strokeStyle = "#333";
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function toggleSpin() {
+            if (!isSpinning) {
+                // START SPINNING
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                isSpinning = true;
+                isStopping = false;
+                btn.innerText = "STOP";
+                btn.classList.add("stop-mode");
+                statusText.innerText = "加速中...";
+                
+                // Acceleration Logic
+                let accel = 0;
+                const targetSpeed = 25 + Math.random() * 10; // Random max speed
+
+                const spinLoop = () => {
+                    if(!isSpinning) return;
+
+                    if (!isStopping) {
+                        // Phase 1: Accelerate to max speed
+                        if (speed < targetSpeed) {
+                            speed += 0.5;
+                        } else {
+                             statusText.innerText = "轉動中...等待停止";
+                        }
+                    } else {
+                        // Phase 2: Decelerate (Stop clicked)
+                        // Friction is random based on EXACT click time to avoid prediction
+                        speed *= friction; 
+                        
+                        if (speed < 0.05) {
+                            finalize();
+                            return; 
+                        }
+                    }
+
+                    // Audio Tick Logic
+                    const sliceDeg = 360 / segments.length;
+                    const prevSlice = Math.floor(currentAngle / sliceDeg);
+                    
+                    currentAngle += speed;
+                    if (currentAngle >= 360) currentAngle %= 360;
+                    
+                    const newSlice = Math.floor(currentAngle / sliceDeg);
+                    if (prevSlice !== newSlice) {
+                        playSound('tick');
+                    }
+
+                    drawWheel();
+                    animationFrameId = requestAnimationFrame(spinLoop);
+                };
+                spinLoop();
+
+            } else {
+                // STOP COMMAND
+                if(isStopping) return; // Already stopping
+                
+                isStopping = true;
+                btn.innerText = "WAIT...";
+                btn.disabled = true;
+                statusText.innerText = "減速中...";
+
+                // Random Friction Logic
+                // 0.985 is slow stop, 0.96 is fast stop.
+                // We use performance.now() to make it physically random dependent on user reflex
+                const randomFactor = (performance.now() % 100) / 10000; // 0.0000 to 0.0100
+                friction = 0.980 + Math.random() * 0.005 + randomFactor; 
+                // Friction result roughly between 0.980 and 0.995
+            }
+        }
+        
+        let friction = 0.985;
+
+        function finalize() {
+            isSpinning = false;
+            cancelAnimationFrame(animationFrameId);
+            btn.classList.remove("stop-mode");
+            btn.disabled = false;
+            btn.innerText = "GO!";
+            statusText.innerText = "結果出爐！";
+            playSound('win');
+
+            // Calculate Winner
+            // Pointer is at Top (270 degrees in Canvas logic, but we rotated canvas)
+            // Actually simpler: The canvas rotates. 
+            // If canvas rotation is A. The slice at TOP (-90deg) is the one where:
+            // (StartAngle + A) % 360 hits -90 (or 270).
+            
+            // Normalize angle to 0-360
+            const finalAngle = currentAngle % 360;
+            
+            // Calculate which segment aligns with the top pointer
+            // Total 360. Pointer is static at top.
+            // Wheel rotates CLOCKWISE (positive angle).
+            // The segment at top is: (360 - finalAngle) / sliceWidth
+            
+            const sliceDegrees = 360 / segments.length;
+            
+            // Adjustment calculation:
+            // 0 deg rotation -> Slice 0 starts at -90deg (top). So Slice 0 is winner.
+            // Rotate +10 deg -> Slice 0 moves right. Slice LAST moves to top.
+            // Index = Math.floor( (360 - finalAngle + offset) / sliceDeg ) % Count
+            
+            // We need a small offset adjustment because JS Math.floor might be tricky near boundaries
+            // But visually, the slice index is:
+            let index = Math.floor(((360 - finalAngle) + (sliceDegrees/2)) / sliceDegrees) % segments.length;
+            // Actually, my previous logic was: i * sliceAngle - 90deg.
+            // So index 0 is at -90deg.
+            // If angle is 0, index 0 is at top. Correct.
+            // If angle is +10, everything shifts right. The thing at top (-90) becomes the one to the LEFT of index 0 (last index).
+            // So: (360 - 10) / slice = 350 / slice. Correct.
+            
+            index = Math.floor((360 - finalAngle) / sliceDegrees) % segments.length;
+            
+            // Show Result
+            const winner = segments[index];
+            showResult(winner.text);
+        }
+
+        function showResult(text) {
+            const modal = document.getElementById('result-modal');
+            const numEl = document.getElementById('winner-num');
+            modal.classList.remove('hidden');
+            numEl.innerText = text;
+            setTimeout(() => {
+                numEl.classList.remove('scale-0');
+                numEl.classList.add('scale-100');
+                createConfetti();
+            }, 100);
+        }
+
+        function closeModal() {
+            document.getElementById('result-modal').classList.add('hidden');
+            document.getElementById('winner-num').classList.add('scale-0');
+            document.getElementById('winner-num').classList.remove('scale-100');
+        }
+
+        function createConfetti() {
+            for(let i=0; i<50; i++) {
+                const conf = document.createElement('div');
+                conf.className = 'confetti';
+                conf.style.left = Math.random() * 100 + 'vw';
+                conf.style.backgroundColor = colors[Math.floor(Math.random()*colors.length)];
+                conf.style.animationDuration = (Math.random() * 3 + 2) + 's';
+                document.getElementById('result-modal').appendChild(conf);
+                setTimeout(() => conf.remove(), 5000);
+            }
+        }
+
+        // Init
+        initWheel();
+
+    </script>
+</body>
+</html>
