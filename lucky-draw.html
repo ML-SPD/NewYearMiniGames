@@ -6,7 +6,7 @@
     <title>2026 Meiloon 幸運輪盤</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Microsoft JhengHei', sans-serif; }
+        body { margin: 0; overflow: hidden; background: #A7C7E7; font-family: 'Microsoft JhengHei', sans-serif; }
         
         .wheel-container {
             position: relative;
@@ -101,7 +101,8 @@
             <!-- Logo / Header -->
             <div class="text-center mb-4">
                 <img src="assets/logo-n.svg" alt="Meiloon Logo" class="h-12 md:h-16 mx-auto mb-2 drop-shadow-lg">
-                <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 italic pr-2">2026尾牙留聲機幸運星</h1>
+                <h1 class="text-3xl font-black text-blue-900 italic pr-2">2026尾牙留聲機幸運星</h1>
+                <p class="text-blue-700/80 text-sm font-bold mt-1">LUCKY DRAW WHEEL</p>
                 <br>
             </div>
 
@@ -116,19 +117,34 @@
         </div>
 
         <!-- Right Side: Controls -->
-        <div class="controls bg-gray-800/50 p-6 rounded-2xl border border-gray-700 backdrop-blur-sm shadow-xl flex flex-col items-center space-y-4 w-full max-w-xs">
-            <h3 class="text-white font-bold border-b border-gray-600 pb-2 w-full text-center">設定面板</h3>
+        <div class="controls bg-white/70 p-6 rounded-2xl border border-white backdrop-blur-sm shadow-xl flex flex-col items-center space-y-4 w-full max-w-xs">
+            <h3 class="text-blue-900 font-bold border-b border-blue-200 pb-2 w-full text-center">設定面板</h3>
             <div class="flex flex-col items-center w-full space-y-2">
-                <label class="text-gray-300 text-sm font-bold">總人數</label>
+                <label class="text-blue-800 text-sm font-bold">總人數</label>
                 <div class="flex w-full space-x-2">
-                    <input type="number" id="memberCount" value="14" min="2" max="100" class="flex-1 text-center bg-gray-900 border border-gray-600 rounded-lg text-white font-bold p-2 focus:border-green-500 focus:outline-none">
-                    <button onclick="initWheel()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg transition active:scale-95">更新</button>
+                    <input type="number" id="memberCount" value="14" min="2" max="100" class="flex-1 text-center bg-white border border-blue-200 rounded-lg text-blue-900 font-bold p-2 focus:border-blue-500 focus:outline-none">
+                    <button onclick="initWheel()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg transition active:scale-95">設定</button>
                 </div>
             </div>
-            <div class="w-full h-px bg-gray-700 my-2"></div>
-            <div class="text-center">
-                <p class="text-gray-400 text-xs mb-1">狀態</p>
-                <p id="status-text" class="text-green-400 font-mono font-bold text-lg animate-pulse">準備就緒</p>
+
+            <div class="flex flex-col items-center w-full space-y-2">
+                <label class="text-blue-800 text-sm font-bold">抽出人數</label>
+                <input type="number" id="drawCount" value="3" min="1" max="100" class="w-full text-center bg-white border border-blue-200 rounded-lg text-blue-900 font-bold p-2 focus:border-blue-500 focus:outline-none" onchange="updateDrawSettings()">
+            </div>
+
+            <button onclick="resetGame()" class="w-full bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg transition active:scale-95 text-sm">重置遊戲</button>
+
+            <div class="w-full h-px bg-blue-200 my-2"></div>
+            <div class="text-center w-full">
+                <p class="text-blue-800/70 text-xs mb-1 font-bold">目前狀態</p>
+                <p id="status-text" class="text-blue-900 font-mono font-bold text-lg">準備就緒</p>
+            </div>
+
+            <div class="w-full bg-white/50 rounded-lg p-3 mt-2 min-h-[100px] border border-blue-200">
+                <p class="text-blue-900 text-xs mb-2 text-center border-b border-blue-200 pb-1 font-bold">中獎名單</p>
+                <div id="winners-container" class="flex flex-wrap justify-center gap-2">
+                    <!-- Winner tags will go here -->
+                </div>
             </div>
         </div>
 
@@ -145,11 +161,15 @@
         const canvas = document.getElementById('wheelCanvas');
         const ctx = canvas.getContext('2d');
         const countInput = document.getElementById('memberCount');
+        const drawInput = document.getElementById('drawCount');
         const btn = document.getElementById('action-btn');
         const statusText = document.getElementById('status-text');
+        const winnersContainer = document.getElementById('winners-container');
 
         let segments = [];
         let totalMembers = 14;
+        let winners = [];
+        let remainingDraws = 3;
         let currentAngle = 0; // Degrees
         let isSpinning = false;
         let isStopping = false;
@@ -224,6 +244,10 @@
             if(val < 2 || val > 100) return alert("請輸入 2 到 100 之間的人數");
             
             totalMembers = val;
+            remainingDraws = parseInt(drawInput.value) || 3;
+            winners = [];
+            
+            // Generate Initial Segments
             segments = [];
             for(let i=1; i<=totalMembers; i++) {
                 segments.push({
@@ -231,11 +255,55 @@
                     color: colors[(i-1) % colors.length]
                 });
             }
+            
+            updateUI();
             drawWheel();
-            statusText.innerText = `已設定 ${totalMembers} 位成員`;
+            statusText.innerText = `已重置：${totalMembers}人, 抽${remainingDraws}位`;
+        }
+
+        function resetGame() {
+            if(confirm("確定要重置遊戲嗎？所有中獎紀錄將被清除。")) {
+                initWheel();
+            }
+        }
+
+        function updateDrawSettings() {
+            const val = parseInt(drawInput.value);
+            if(val > 0) remainingDraws = val;
+            updateUI();
+        }
+
+        function updateUI() {
+            // Update Winners List
+            winnersContainer.innerHTML = winners.map(w => 
+                `<span class="bg-yellow-500 text-black font-black px-2 py-1 rounded shadow text-sm">${w}</span>`
+            ).join('');
+
+            // Update Input (in case logic changed it)
+            drawInput.value = remainingDraws;
+
+            // Update Button State
+            if(remainingDraws <= 0 || segments.length === 0) {
+                btn.disabled = true;
+                btn.innerText = "END";
+                btn.style.background = "#555";
+                btn.style.borderColor = "#333";
+                statusText.innerText = "抽獎結束";
+            } else {
+                btn.disabled = false;
+                btn.innerText = "GO!";
+                btn.classList.remove("stop-mode");
+                btn.style.background = ""; // Reset inline style
+                btn.style.borderColor = "";
+            }
         }
 
         function drawWheel() {
+            if(segments.length === 0) {
+                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                 return;
+            }
+
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
             const radius = canvas.width / 2 - 20; // Padding
@@ -258,7 +326,7 @@
                 ctx.arc(0, 0, radius, startAngle, endAngle);
                 ctx.fillStyle = seg.color;
                 ctx.fill();
-                ctx.strokeStyle = "#1a1a1a";
+                ctx.strokeStyle = "#A7C7E7"; // Match Crayon Blue
                 ctx.lineWidth = 4;
                 ctx.stroke();
 
@@ -276,10 +344,10 @@
                 ctx.restore();
             });
 
-            // Center White Circle
+            // Center Circle
             ctx.beginPath();
             ctx.arc(0, 0, 80, 0, 2 * Math.PI);
-            ctx.fillStyle = "#1a1a1a"; // Match background
+            ctx.fillStyle = "#A7C7E7"; // Match Crayon Blue
             ctx.fill();
             ctx.strokeStyle = "#333";
             ctx.lineWidth = 5;
@@ -289,6 +357,8 @@
         }
 
         function toggleSpin() {
+            if(segments.length === 0 || remainingDraws <= 0) return;
+
             if (!isSpinning) {
                 // START SPINNING
                 if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -324,15 +394,17 @@
                     }
 
                     // Audio Tick Logic
-                    const sliceDeg = 360 / segments.length;
-                    const prevSlice = Math.floor(currentAngle / sliceDeg);
-                    
-                    currentAngle += speed;
-                    if (currentAngle >= 360) currentAngle %= 360;
-                    
-                    const newSlice = Math.floor(currentAngle / sliceDeg);
-                    if (prevSlice !== newSlice) {
-                        playSound('tick');
+                    if(segments.length > 0) {
+                        const sliceDeg = 360 / segments.length;
+                        const prevSlice = Math.floor(currentAngle / sliceDeg);
+                        
+                        currentAngle += speed;
+                        if (currentAngle >= 360) currentAngle %= 360;
+                        
+                        const newSlice = Math.floor(currentAngle / sliceDeg);
+                        if (prevSlice !== newSlice) {
+                            playSound('tick');
+                        }
                     }
 
                     drawWheel();
@@ -349,9 +421,9 @@
                 btn.disabled = true;
                 statusText.innerText = "減速中...";
 
-                // Random Friction Logic
-                // 0.985 is slow stop, 0.96 is fast stop.
-                // We use performance.now() to make it physically random dependent on user reflex
+                // 隨機摩擦邏輯
+                // 0.985 為慢速停止，0.96 為快速停止。
+                // 使用 performance.now() 來使其物理上隨機，並取決於使用者的反應速度。
                 const randomFactor = (performance.now() % 100) / 10000; // 0.0000 to 0.0100
                 friction = 0.980 + Math.random() * 0.005 + randomFactor; 
                 // Friction result roughly between 0.980 and 0.995
@@ -363,47 +435,34 @@
         function finalize() {
             isSpinning = false;
             cancelAnimationFrame(animationFrameId);
-            btn.classList.remove("stop-mode");
-            btn.disabled = false;
-            btn.innerText = "GO!";
             statusText.innerText = "結果出爐！";
             playSound('win');
 
             // Calculate Winner
-            // Pointer is at Top (270 degrees in Canvas logic, but we rotated canvas)
-            // Actually simpler: The canvas rotates. 
-            // If canvas rotation is A. The slice at TOP (-90deg) is the one where:
-            // (StartAngle + A) % 360 hits -90 (or 270).
-            
-            // Normalize angle to 0-360
             const finalAngle = currentAngle % 360;
-            
-            // Calculate which segment aligns with the top pointer
-            // Total 360. Pointer is static at top.
-            // Wheel rotates CLOCKWISE (positive angle).
-            // The segment at top is: (360 - finalAngle) / sliceWidth
-            
             const sliceDegrees = 360 / segments.length;
             
-            // Adjustment calculation:
-            // 0 deg rotation -> Slice 0 starts at -90deg (top). So Slice 0 is winner.
-            // Rotate +10 deg -> Slice 0 moves right. Slice LAST moves to top.
-            // Index = Math.floor( (360 - finalAngle + offset) / sliceDeg ) % Count
+            // Fix index calculation logic:
+            // Since top is -90deg, and we rotate canvas by A. 
+            // The segment at Top is the one that covers -90 relative to the rotated canvas.
+            // Which means segment start angle + A <= -90 <= segment end angle + A
+            // Simplified: index = (360 - angle) / slice
+            let index = Math.floor((360 - finalAngle) / sliceDegrees) % segments.length;
             
-            // We need a small offset adjustment because JS Math.floor might be tricky near boundaries
-            // But visually, the slice index is:
-            let index = Math.floor(((360 - finalAngle) + (sliceDegrees/2)) / sliceDegrees) % segments.length;
-            // Actually, my previous logic was: i * sliceAngle - 90deg.
-            // So index 0 is at -90deg.
-            // If angle is 0, index 0 is at top. Correct.
-            // If angle is +10, everything shifts right. The thing at top (-90) becomes the one to the LEFT of index 0 (last index).
-            // So: (360 - 10) / slice = 350 / slice. Correct.
+            const winnerSeg = segments[index];
             
-            index = Math.floor((360 - finalAngle) / sliceDegrees) % segments.length;
+            // Logic Update
+            remainingDraws--;
+            winners.push(winnerSeg.text);
+            
+            // Remove Segment
+            segments.splice(index, 1);
             
             // Show Result
-            const winner = segments[index];
-            showResult(winner.text);
+            showResult(winnerSeg.text);
+            
+            updateUI();
+            drawWheel(); // Redraw with removed segment
         }
 
         function showResult(text) {
@@ -422,7 +481,33 @@
             document.getElementById('result-modal').classList.add('hidden');
             document.getElementById('winner-num').classList.add('scale-0');
             document.getElementById('winner-num').classList.remove('scale-100');
+            
+            // If draws remain, update status
+            if(remainingDraws > 0 && segments.length > 0) {
+                 statusText.innerText = `準備下一位 (剩餘 ${remainingDraws} 位)`;
+            }
         }
+
+        // Keyboard Support: Space to Go/Stop
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                // Prevent scrolling page
+                e.preventDefault();
+
+                // If typing in input, don't trigger
+                if (document.activeElement.tagName === 'INPUT') return;
+
+                // If modal is open, close it first
+                const modal = document.getElementById('result-modal');
+                if (!modal.classList.contains('hidden')) {
+                    closeModal();
+                    return;
+                }
+
+                // Trigger spin/stop
+                toggleSpin();
+            }
+        });
 
         function createConfetti() {
             for(let i=0; i<50; i++) {
