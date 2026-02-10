@@ -240,7 +240,7 @@
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Microsoft JhengHei', sans-serif; }
         #ui { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; z-index: 50; }
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 100; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-        .overlay-content { min-height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px 10px; }
+        .overlay-content { width: 100%; display: flex; flex-direction: column; justify-content: space-evenly; align-items: center; padding: 10px; }
         .avatar-option { width: 65px; height: 65px; border: 3px solid transparent; border-radius: 50%; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; background: #333; overflow: hidden; }
         .avatar-option img { width: 100%; height: 100%; object-fit: cover; }
         .avatar-selected { border-color: #4ade80; transform: scale(1.1); box-shadow: 0 0 10px #4ade80; }
@@ -259,10 +259,10 @@
         .game-board {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
+            gap: 10px;
             width: 90%;
             max-width: 400px;
-            margin: 100px auto 0;
+            margin: 70px auto 0;
             z-index: 10;
             position: relative;
         }
@@ -303,28 +303,32 @@
 <body>
     <div id="line-warning" class="hidden">請點擊選單 (右下角) ➔ 選擇「在瀏覽器中開啟」以獲得最佳體驗</div>
     
-    <div id="login-menu" class="overlay text-white">
-        <a href="index.html" class="absolute top-6 left-6 bg-gray-700/50 hover:bg-gray-600 w-12 h-12 flex items-center justify-center rounded-full text-white transition z-50 shadow-lg">
-            <span class="text-xl">🏠</span>
-        </a>
-        <div class="overlay-content">
-            <img src="assets/logo-n.svg" alt="Meiloon Logo" class="h-16 mb-6 drop-shadow-lg">
-            <div class="flex items-center justify-center space-x-2 mb-6">
+    <div id="login-menu" class="overlay text-white flex flex-col h-[100dvh] overflow-hidden">
+        <!-- Top Header -->
+        <div class="w-full pt-4 pb-0 px-4 flex items-center relative z-50 shrink-0">
+            <a href="index.html" class="bg-gray-700/50 hover:bg-gray-600 w-12 h-12 flex items-center justify-center rounded-full text-white transition shadow-lg z-10">
+                <span class="text-xl">🏠</span>
+            </a>
+            <img src="assets/logo-n.svg" alt="Meiloon Logo" class="h-12 drop-shadow-lg absolute left-1/2 -translate-x-1/2">
+        </div>
+
+        <div class="overlay-content flex-1 w-full flex flex-col justify-evenly items-center pt-0 pb-4 px-2 gap-y-2">
+            <div class="flex items-center justify-center space-x-2">
                 <h1 class="text-xl font-black text-green-400 italic leading-tight">2026 Meiloon - 地鼠大亂鬥</h1>
                 <button onclick="document.getElementById('help-modal').classList.remove('hidden')" class="bg-gray-700 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold border border-gray-500 hover:bg-gray-600">?</button>
             </div>
-            <div class="w-full max-w-sm space-y-4 text-black">
+            <div class="w-full max-w-sm space-y-2 text-black">
                 <div class="flex space-x-2">
                     <input type="text" id="userId" placeholder="工號" class="flex-1 p-3 rounded-lg text-center font-bold text-sm min-w-0">
                     <input type="text" id="pName" placeholder="暱稱" class="flex-1 p-3 rounded-lg text-center font-bold text-sm min-w-0">
                 </div>
-                <p class="text-gray-400 text-sm text-center pt-2">選擇頭像</p>
-                <div class="grid grid-cols-4 gap-3 py-2 justify-items-center" id="avatar-container"></div>
+                <p class="text-gray-400 text-xs text-center">選擇頭像</p>
+                <div class="grid grid-cols-4 gap-2 py-1 justify-items-center" id="avatar-container"></div>
             </div>
-            <button onclick="bootGame()" class="mt-8 bg-gradient-to-r from-green-600 to-teal-600 px-16 py-4 rounded-full text-xl font-bold shadow-xl active:scale-95 transition">開始挑戰</button>
-            <div class="mt-12 text-center text-gray-500 text-xs space-y-1">
+            <button onclick="bootGame()" class="bg-gradient-to-r from-green-600 to-teal-600 px-16 py-4 rounded-full text-xl font-bold shadow-xl active:scale-95 transition">開始挑戰</button>
+            <div class="text-center text-gray-500 text-xs space-y-1">
                 <p>© 2026 Meiloon All rights reserved.</p>
-                <p>Developed by MarsLin</p>
+                <p>Developed by Smart product</p>
             </div>
         </div>
     </div>
@@ -471,7 +475,7 @@
 
             <div class="mt-10 text-center text-gray-500 text-xs space-y-1 pb-4">
                 <p>© 2026 Meiloon All rights reserved.</p>
-                <p>Developed by MarsLin</p>
+                <p>Developed by Smart product</p>
             </div>
         </div>
     </div>
@@ -521,25 +525,25 @@
         <div class="hole" onclick="hit(this)"></div>
     </div>
 
-    <div class="mt-10 w-full max-w-xl mx-auto px-4 py-6 bg-black/50 backdrop-blur-md rounded-2xl border border-white/20 text-white pointer-events-none">
-        <div class="grid grid-cols-3 gap-4 text-center items-end">
-            <div class="space-y-3">
-                <div class="flex justify-center -space-x-6">
-                    <img src="assets/groundhog1.png" class="w-14 h-14 drop-shadow-lg">
-                    <img src="assets/groundhog2.png" class="w-14 h-14 drop-shadow-lg">
-                    <img src="assets/groundhog3.png" class="w-14 h-14 drop-shadow-lg">
+    <div class="mt-4 w-full max-w-xl mx-auto px-4 py-3 bg-black/50 backdrop-blur-md rounded-2xl border border-white/20 text-white pointer-events-none">
+        <div class="grid grid-cols-3 gap-2 text-center items-end">
+            <div class="space-y-1">
+                <div class="flex justify-center -space-x-4">
+                    <img src="assets/groundhog1.png" class="w-10 h-10 drop-shadow-lg">
+                    <img src="assets/groundhog2.png" class="w-10 h-10 drop-shadow-lg">
+                    <img src="assets/groundhog3.png" class="w-10 h-10 drop-shadow-lg">
                 </div>
-                <p class="text-xl font-black text-green-400 drop-shadow-md">+10分</p>
+                <p class="text-lg font-black text-green-400 drop-shadow-md">+10分</p>
             </div>
-            <div class="space-y-3 border-x-2 border-white/10">
+            <div class="space-y-1 border-x-2 border-white/10">
                 <div class="flex justify-center">
-                    <img src="assets/groundhogBoss.png" class="w-16 h-16 drop-shadow-lg">
+                    <img src="assets/groundhogBoss.png" class="w-12 h-12 drop-shadow-lg">
                 </div>
-                <p class="text-xl font-black text-yellow-400 drop-shadow-md">+30分</p>
+                <p class="text-lg font-black text-yellow-400 drop-shadow-md">+30分</p>
             </div>
-            <div class="space-y-3">
-                <div class="flex justify-center space-x-2 text-5xl"><span>💣</span><span>🧨</span></div>
-                <p class="text-xl font-black text-red-400 drop-shadow-md">-3秒</p>
+            <div class="space-y-1">
+                <div class="flex justify-center space-x-1 text-4xl"><span>💣</span><span>🧨</span></div>
+                <p class="text-lg font-black text-red-400 drop-shadow-md">-3秒</p>
             </div>
         </div>
     </div>
